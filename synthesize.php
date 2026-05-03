@@ -2,42 +2,47 @@
 
 require_once __DIR__ . '/functions.php';
 
-// ── Step 1: Cluster articles into topics ─────────────────────────────────────
-
+// ── Only process articles not yet assigned to a topic ─────────────────────────
 $articles = db()->query('
-    SELECT a.id, a.title,
-           GROUP_CONCAT(DISTINCT at2.tag ORDER BY at2.tag SEPARATOR ", ") as tags,
-           ai.score as anxiety
+    SELECT a.id, a.title
     FROM articles a
-    LEFT JOIN article_tags at2 ON at2.article_id = a.id
-    LEFT JOIN article_indexes ai ON ai.article_id = a.id AND ai.index_name = "anxiety"
-    WHERE a.processed = 1
-    GROUP BY a.id
+    LEFT JOIN article_topics ato ON ato.article_id = a.id
+    WHERE a.processed = 1 AND ato.article_id IS NULL
     ORDER BY a.fetched_at DESC
     LIMIT 100
 ')->fetchAll();
 
 if (empty($articles)) {
-    $msg = 'No processed articles found. Run tag.php first.';
-    log_action('synthesize', 'error', $msg);
+    $msg = 'No new unassigned articles. Nothing to synthesize.';
+    log_action('synthesize', 'success', $msg);
     cli_log($msg);
     exit;
 }
 
-cli_log('Step 1: Clustering ' . count($articles) . ' articles into topics...');
+cli_log(count($articles) . ' new articles to cluster.');
 
-$article_lines = '';
-foreach ($articles as $a) {
-    $article_lines .= "ID:{$a['id']} | Anxiety:{$a['anxiety']} | {$a['title']}\n";
-}
+// ── Build article lines for prompt ───────────────────────────────────────────
+$article_lines = implode("\n", array_map(
+    fn($a) => "ID:{$a['id']} | {$a['title']}",
+    $articles
+));
 
-$cluster_prompt = get_prompt('cluster');
-$cluster_prompt = str_replace('{{articles}}', $article_lines, $cluster_prompt);
+// ── Get existing topics for matching ─────────────────────────────────────────
+$existing_topics = db()->query('SELECT id, title FROM topics ORDER BY created_at DESC')->fetchAll();
+$existing_lines  = empty($existing_topics)
+    ? 'None'
+    : implode("\n", array_map(fn($t) => "ID:{$t['id']} | {$t['title']}", $existing_topics));
 
-$system  = 'You are a JSON API. Output only a raw valid JSON array. No markdown, no citations, no explanations, no extra text.';
-$raw     = call_perplexity($cluster_prompt, $system);
-$clean   = extract_json($raw);
-$clusters = json_decode($clean, true);
+// ── Step 1: Cluster ───────────────────────────────────────────────────────────
+$prompt = get_prompt('cluster');
+$prompt = str_replace('{{existing_topics}}', $existing_lines, $prompt);
+$prompt = str_replace('{{articles}}',        $article_lines,  $prompt);
+
+$system  = 'You are a JSON API. Output only a raw valid JSON array. No markdown, no citations, no extra text.';
+
+cli_log('Calling Perplexity to cluster articles...');
+$raw      = call_perplexity($prompt, $system);
+$clusters = json_decode(extract_json($raw), true);
 
 if (!$clusters || !is_array($clusters)) {
     $msg = 'Failed to parse cluster response: ' . substr($raw, 0, 300);
@@ -46,60 +51,97 @@ if (!$clusters || !is_array($clusters)) {
     exit;
 }
 
-cli_log('Got ' . count($clusters) . ' topics. Step 2: Generating bullet points...');
+cli_log('Got ' . count($clusters) . ' clusters. Processing...');
 
-// ── Step 2: Generate bullets per topic ───────────────────────────────────────
-
-// Clear old topics
-db()->exec('DELETE FROM article_topics');
-db()->exec('DELETE FROM topic_bullets');
-db()->exec('DELETE FROM topics');
-
+// ── Step 2: Save clusters + generate bullets ──────────────────────────────────
 $bullets_prompt_tpl = get_prompt('bullets');
-$saved = 0;
+$saved_new   = 0;
+$saved_existing = 0;
+$topics_needing_bullets = []; // topic_id => [article titles]
 
 foreach ($clusters as $cluster) {
-    $title       = $cluster['title'] ?? 'Untitled';
-    $article_ids = $cluster['ids']   ?? $cluster['article_ids'] ?? [];
+    $title       = $cluster['title']    ?? 'Untitled';
+    $topic_id    = isset($cluster['topic_id']) && $cluster['topic_id'] ? (int)$cluster['topic_id'] : null;
+    $article_ids = $cluster['ids']      ?? [];
 
     if (empty($article_ids)) continue;
 
-    // Compute anxiety_avg from DB
-    $ids_str     = implode(',', array_map('intval', $article_ids));
+    // Validate article IDs belong to our unassigned set
+    $valid_ids = array_filter($article_ids, fn($id) => in_array((int)$id, array_column($articles, 'id')));
+    if (empty($valid_ids)) continue;
+
+    // Compute anxiety_avg
+    $ids_str     = implode(',', array_map('intval', $valid_ids));
     $anxiety_avg = (float) db()->query(
-        "SELECT AVG(score) FROM article_indexes WHERE index_name='anxiety' AND article_id IN ({$ids_str})"
+        "SELECT COALESCE(AVG(score), 5) FROM article_indexes WHERE index_name='anxiety' AND article_id IN ({$ids_str})"
     )->fetchColumn();
 
-    // Fetch titles for this cluster
-    $ids_sql    = implode(',', array_map('intval', $article_ids));
-    $art_titles = db()->query("SELECT id, title FROM articles WHERE id IN ({$ids_sql})")->fetchAll();
-    $art_list   = implode("\n", array_map(fn($a) => "- {$a['title']}", $art_titles));
+    if ($topic_id) {
+        // Assign to existing topic
+        $st = db()->prepare('INSERT IGNORE INTO article_topics (article_id, topic_id) VALUES (?, ?)');
+        foreach ($valid_ids as $aid) $st->execute([$aid, $topic_id]);
 
-    $prompt = str_replace('{{topic}}',    $title,    $bullets_prompt_tpl);
-    $prompt = str_replace('{{articles}}', $art_list, $bullets_prompt_tpl);
-    $prompt = str_replace('{{topic}}',    $title,    $prompt);
+        // Update topic anxiety_avg
+        db()->prepare('UPDATE topics SET anxiety_avg = (SELECT AVG(ai.score) FROM article_indexes ai JOIN article_topics ato ON ato.article_id = ai.article_id WHERE ato.topic_id = ? AND ai.index_name = "anxiety") WHERE id = ?')
+            ->execute([$topic_id, $topic_id]);
 
-    $raw    = call_perplexity($prompt, $system);
-    $clean  = extract_json($raw);
-    $bullets = json_decode($clean, true);
+        $topics_needing_bullets[$topic_id] = $title;
+        $saved_existing++;
+        cli_log("  → Assigned to existing [{$topic_id}] {$title}");
+    } else {
+        // Create new topic — get bullet points first
+        $art_titles = db()->query("SELECT title FROM articles WHERE id IN ({$ids_str})")->fetchAll(PDO::FETCH_COLUMN);
+        $art_list   = implode("\n", array_map(fn($t) => "- {$t}", $art_titles));
+        $bp_prompt  = str_replace(['{{topic}}', '{{articles}}'], [$title, $art_list], $bullets_prompt_tpl);
 
-    if (!is_array($bullets) || count($bullets) < 1) {
-        // Fallback: split plain text into bullets
-        $bullets = array_filter(array_map('trim', preg_split('/\n|•|-/', $raw)));
-        $bullets = array_values(array_slice($bullets, 0, 3));
+        $raw_b   = call_perplexity($bp_prompt, $system);
+        $bullets = json_decode(extract_json($raw_b), true);
+
+        if (!is_array($bullets) || count($bullets) < 1) {
+            $bullets = array_filter(array_map('trim', preg_split('/\n|•|-/', $raw_b)));
+            $bullets = array_values(array_slice($bullets, 0, 3));
+        }
+        $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, 3));
+
+        $new_id = save_topic($title, $bullets, $anxiety_avg, $valid_ids);
+        $saved_new++;
+        cli_log("  + New topic [{$new_id}] {$title} (anxiety: " . round($anxiety_avg, 1) . ")");
+        foreach ($bullets as $b) cli_log("    • {$b}");
     }
-
-    $bullets = array_slice($bullets, 0, 3);
-    $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), $bullets);
-
-    $id = save_topic($title, $bullets, $anxiety_avg, $article_ids);
-    $saved++;
-    cli_log("  [{$id}] {$title} (anxiety: {$anxiety_avg})");
-    foreach ($bullets as $b) cli_log("    • {$b}");
 }
 
-log_action('synthesize', 'success', "{$saved} topics generated from " . count($articles) . " articles");
-cli_log("\nDone: {$saved} topics saved.");
+// ── Step 3: Regenerate bullets for existing topics that got new articles ──────
+if (!empty($topics_needing_bullets)) {
+    cli_log("\nRegenerating bullets for " . count($topics_needing_bullets) . " updated topics...");
+    foreach ($topics_needing_bullets as $topic_id => $title) {
+        $art_titles = db()->query(
+            "SELECT a.title FROM articles a JOIN article_topics ato ON ato.article_id = a.id WHERE ato.topic_id = {$topic_id}"
+        )->fetchAll(PDO::FETCH_COLUMN);
+
+        if (empty($art_titles)) continue;
+
+        $art_list  = implode("\n", array_map(fn($t) => "- {$t}", $art_titles));
+        $bp_prompt = str_replace(['{{topic}}', '{{articles}}'], [$title, $art_list], $bullets_prompt_tpl);
+        $raw_b     = call_perplexity($bp_prompt, $system);
+        $bullets   = json_decode(extract_json($raw_b), true);
+
+        if (!is_array($bullets) || count($bullets) < 1) {
+            $bullets = array_filter(array_map('trim', preg_split('/\n|•|-/', $raw_b)));
+            $bullets = array_values(array_slice($bullets, 0, 3));
+        }
+        $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, 3));
+
+        db()->prepare('DELETE FROM topic_bullets WHERE topic_id = ?')->execute([$topic_id]);
+        $st = db()->prepare('INSERT INTO topic_bullets (topic_id, bullet, display_order) VALUES (?, ?, ?)');
+        foreach ($bullets as $i => $b) $st->execute([$topic_id, $b, $i]);
+
+        cli_log("  ↺ Updated bullets for [{$topic_id}] {$title}");
+    }
+}
+
+$msg = "{$saved_new} new topics created, {$saved_existing} existing topics updated";
+log_action('synthesize', 'success', $msg);
+cli_log("\nDone: {$msg}");
 
 function cli_log(string $msg): void {
     if (php_sapi_name() === 'cli') echo $msg . "\n";
