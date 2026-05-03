@@ -66,7 +66,8 @@ h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
   padding: 14px 18px;
   border-bottom: 1px solid #f1f5f9;
 }
-.topic-title { font-size: 15px; font-weight: 700; }
+.topic-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.topic-age { font-size: 11px; font-weight: 400; color: #94a3b8; }
 .anxiety-badge {
   color: white;
   font-size: 11px;

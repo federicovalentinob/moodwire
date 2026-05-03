@@ -260,7 +260,15 @@ function call_perplexity(string $prompt, string $system = ''): string {
 // ─── Topics ──────────────────────────────────────────────────────────────────
 
 function get_latest_topics(): array {
-    $topics = db()->query('SELECT * FROM topics ORDER BY anxiety_avg DESC, created_at DESC')->fetchAll();
+    $topics = db()->query('
+        SELECT t.*,
+               MAX(COALESCE(a.published_at, a.fetched_at)) as latest_article_at
+        FROM topics t
+        LEFT JOIN article_topics ato ON ato.topic_id = t.id
+        LEFT JOIN articles a ON a.id = ato.article_id
+        GROUP BY t.id
+        ORDER BY t.anxiety_avg DESC, t.created_at DESC
+    ')->fetchAll();
     foreach ($topics as &$topic) {
         $st = db()->prepare('SELECT bullet FROM topic_bullets WHERE topic_id = ? ORDER BY display_order');
         $st->execute([$topic['id']]);
@@ -301,6 +309,15 @@ function save_topic(string $title, array $bullets, float $anxiety_avg, array $ar
 }
 
 // ─── Display helpers ─────────────────────────────────────────────────────────
+
+function time_ago(?string $datetime): string {
+    if (!$datetime) return '';
+    $diff = max(0, time() - strtotime($datetime));
+    if ($diff < 60)     return 'just now';
+    if ($diff < 3600)   return floor($diff / 60) . 'm ago';
+    if ($diff < 86400)  return floor($diff / 3600) . 'h ago';
+    return floor($diff / 86400) . 'd ago';
+}
 
 function anxiety_color(float $score): string {
     if ($score <= 3) return '#16a34a';

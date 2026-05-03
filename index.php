@@ -66,7 +66,12 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
   ?>
   <div class="topic-card">
     <div class="topic-header">
-      <h2 class="topic-title"><?= htmlspecialchars($topic['title']) ?></h2>
+      <h2 class="topic-title">
+        <?= htmlspecialchars($topic['title']) ?>
+        <?php if ($topic['latest_article_at']): ?>
+          <span class="topic-age"><?= time_ago($topic['latest_article_at']) ?></span>
+        <?php endif; ?>
+      </h2>
       <span class="anxiety-badge" style="background:<?= $color ?>">
         <?= $label ?> <?= number_format($anx, 1) ?>
       </span>
