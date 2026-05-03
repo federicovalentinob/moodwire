@@ -90,6 +90,7 @@ foreach ($clusters as $cluster) {
     }
 
     $bullets = array_slice($bullets, 0, 3);
+    $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), $bullets);
 
     $id = save_topic($title, $bullets, $anxiety_avg, $article_ids);
     $saved++;

@@ -6,9 +6,21 @@ require_once __DIR__ . '/config.php';
 // ─── JSON extraction ────────────────────────────────────────────────────────
 
 function extract_json(string $raw): string {
-    // Try direct decode first
     $raw = trim(preg_replace('/^```json\s*|\s*```$/m', '', trim($raw)));
+    // Try direct decode first
     if (json_decode($raw) !== null) return $raw;
+    // If truncated array, strip last incomplete entry and close the array
+    if (str_starts_with($raw, '[')) {
+        // Find the last complete object by working backwards from each },
+        $pos = strlen($raw);
+        while (($pos = strrpos($raw, '}', $pos - strlen($raw) - 1)) !== false) {
+            $candidate = substr($raw, 0, $pos + 1);
+            // Remove trailing comma then close array
+            $repaired = rtrim($candidate, ", \n\t") . ']';
+            if (json_decode($repaired) !== null) return $repaired;
+            if ($pos === 0) break;
+        }
+    }
     // Find the first [ or { and its matching closer
     $start = -1;
     $opener = '';
