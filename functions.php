@@ -3,6 +3,40 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/config.php';
 
+// ─── JSON extraction ────────────────────────────────────────────────────────
+
+function extract_json(string $raw): string {
+    // Try direct decode first
+    $raw = trim(preg_replace('/^```json\s*|\s*```$/m', '', trim($raw)));
+    if (json_decode($raw) !== null) return $raw;
+    // Find the first [ or { and its matching closer
+    $start = -1;
+    $opener = '';
+    for ($i = 0; $i < strlen($raw); $i++) {
+        if ($raw[$i] === '[' || $raw[$i] === '{') {
+            $start = $i;
+            $opener = $raw[$i];
+            break;
+        }
+    }
+    if ($start === -1) return $raw;
+    $closer  = $opener === '[' ? ']' : '}';
+    $depth   = 0;
+    $in_str  = false;
+    $escape  = false;
+    for ($i = $start; $i < strlen($raw); $i++) {
+        $c = $raw[$i];
+        if ($escape) { $escape = false; continue; }
+        if ($c === '\\' && $in_str) { $escape = true; continue; }
+        if ($c === '"') { $in_str = !$in_str; continue; }
+        if ($in_str) continue;
+        if ($c === $opener || ($opener === '[' && $c === '{') || ($opener === '{' && $c === '[')) $depth++;
+        if ($c === $closer || ($opener === '[' && $c === '}') || ($opener === '{' && $c === ']')) $depth--;
+        if ($depth === 0) return substr($raw, $start, $i - $start + 1);
+    }
+    return substr($raw, $start);
+}
+
 // ─── Logging ────────────────────────────────────────────────────────────────
 
 function log_action(string $action, string $status = 'success', string $message = ''): void {
@@ -118,8 +152,12 @@ function save_clean_content(int $id, string $clean): void {
 
 // ─── Articles ────────────────────────────────────────────────────────────────
 
-function get_unprocessed_articles(): array {
-    return db()->query('SELECT * FROM articles WHERE processed = 0 AND clean_content IS NOT NULL')->fetchAll();
+function get_unprocessed_articles(int $limit = 10): array {
+    return db()->query("SELECT * FROM articles WHERE processed = 0 AND clean_content IS NOT NULL LIMIT {$limit}")->fetchAll();
+}
+
+function count_unprocessed_articles(): int {
+    return (int) db()->query('SELECT COUNT(*) FROM articles WHERE processed = 0')->fetchColumn();
 }
 
 function mark_article_processed(int $id): void {
@@ -141,33 +179,6 @@ function save_article_index(int $article_id, string $index_name, float $score): 
        ->execute([$article_id, $index_name, $score, $score]);
 }
 
-// ─── Claude API ──────────────────────────────────────────────────────────────
-
-function call_claude(string $prompt): string {
-    $payload = json_encode([
-        'model'      => CLAUDE_MODEL,
-        'max_tokens' => 1024,
-        'messages'   => [['role' => 'user', 'content' => $prompt]],
-    ]);
-
-    $ch = curl_init('https://api.anthropic.com/v1/messages');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_HTTPHEADER     => [
-            'Content-Type: application/json',
-            'x-api-key: ' . CLAUDE_API_KEY,
-            'anthropic-version: 2023-06-01',
-        ],
-    ]);
-    $response = curl_exec($ch);
-    curl_close($ch);
-
-    $data = json_decode($response, true);
-    return $data['content'][0]['text'] ?? '';
-}
-
 function get_prompt(string $name): string {
     $st = db()->prepare('SELECT content FROM prompts WHERE name = ? AND active = 1');
     $st->execute([$name]);
@@ -179,8 +190,9 @@ function tag_article(array $article): array {
     $prompt = str_replace('{{title}}',       $article['title'],        $prompt);
     $prompt = str_replace('{{description}}', $article['clean_content'], $prompt);
 
-    $raw  = call_claude($prompt);
-    $json = json_decode(preg_replace('/^```json\s*|\s*```$/m', '', trim($raw)), true);
+    $system = 'You are a JSON API. You only output raw valid JSON. No explanations, no citations, no markdown, no extra text. Only JSON.';
+    $raw    = call_perplexity($prompt, $system);
+    $json   = json_decode(extract_json($raw), true);
 
     return [
         'tags'    => $json['tags']    ?? [],
@@ -190,10 +202,15 @@ function tag_article(array $article): array {
 
 // ─── Perplexity API ──────────────────────────────────────────────────────────
 
-function call_perplexity(string $prompt): string {
+function call_perplexity(string $prompt, string $system = ''): string {
+    $messages = [];
+    if ($system) $messages[] = ['role' => 'system', 'content' => $system];
+    $messages[] = ['role' => 'user', 'content' => $prompt];
+
     $payload = json_encode([
-        'model'    => PERPLEXITY_MODEL,
-        'messages' => [['role' => 'user', 'content' => $prompt]],
+        'model'      => PERPLEXITY_MODEL,
+        'max_tokens' => 4096,
+        'messages'   => $messages,
     ]);
 
     $ch = curl_init('https://api.perplexity.ai/chat/completions');
@@ -207,7 +224,7 @@ function call_perplexity(string $prompt): string {
         ],
     ]);
     $response = curl_exec($ch);
-    curl_close($ch);
+    @curl_close($ch);
 
     $data = json_decode($response, true);
     return $data['choices'][0]['message']['content'] ?? '';
@@ -216,7 +233,7 @@ function call_perplexity(string $prompt): string {
 // ─── Topics ──────────────────────────────────────────────────────────────────
 
 function get_latest_topics(): array {
-    $topics = db()->query('SELECT * FROM topics ORDER BY created_at DESC LIMIT ' . NUM_TOPICS)->fetchAll();
+    $topics = db()->query('SELECT * FROM topics ORDER BY anxiety_avg DESC, created_at DESC')->fetchAll();
     foreach ($topics as &$topic) {
         $st = db()->prepare('SELECT bullet FROM topic_bullets WHERE topic_id = ? ORDER BY display_order');
         $st->execute([$topic['id']]);

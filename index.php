@@ -55,21 +55,22 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
     $color = anxiety_color($anx);
     $label = anxiety_label($anx);
 
-    // Filter by anxiety
+    $filtered_articles = $topic['articles'];
+
+    // Filter topics by anxiety level
     if ($filter_anx) {
-        if ($filter_anx === 'low'    && $anx > 3)  continue;
+        if ($filter_anx === 'low'    && $anx > 3)           continue;
         if ($filter_anx === 'medium' && ($anx < 4 || $anx > 6)) continue;
-        if ($filter_anx === 'high'   && $anx < 7)  continue;
+        if ($filter_anx === 'high'   && $anx < 7)           continue;
     }
 
-    // Filter by tag — check if any article in topic has the tag
+    // Filter by tag
     if ($filter_tag) {
-        $has_tag = false;
-        foreach ($topic['articles'] as $a) {
+        $filtered_articles = array_filter($filtered_articles, function($a) use ($filter_tag) {
             $tags = array_map('trim', explode(',', $a['tags'] ?? ''));
-            if (in_array($filter_tag, $tags)) { $has_tag = true; break; }
-        }
-        if (!$has_tag) continue;
+            return in_array($filter_tag, $tags);
+        });
+        if (empty($filtered_articles)) continue;
     }
   ?>
   <div class="topic-card">
@@ -86,9 +87,9 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
       <?php endforeach; ?>
     </ul>
 
-    <?php if (!empty($topic['articles'])): ?>
+    <?php if (!empty($filtered_articles)): ?>
     <div class="articles">
-      <?php foreach ($topic['articles'] as $a):
+      <?php foreach ($filtered_articles as $a):
         $a_anx   = (float)($a['anxiety'] ?? 5);
         $a_color = anxiety_color($a_anx);
         $a_tags  = array_filter(array_map('trim', explode(',', $a['tags'] ?? '')));

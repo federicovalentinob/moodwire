@@ -2,34 +2,30 @@
 
 require_once __DIR__ . '/functions.php';
 
-$articles = get_unprocessed_articles();
-$count    = 0;
-$errors   = 0;
+$total_tagged  = 0;
+$total_errors  = 0;
 
-foreach ($articles as $article) {
-    try {
-        $result = tag_article($article);
+// Process all untagged articles in batches of 10
+while (true) {
+    $articles = get_unprocessed_articles(10);
+    if (empty($articles)) break;
 
-        save_article_tags($article['id'], $result['tags']);
-        save_article_index($article['id'], 'anxiety', (float)$result['anxiety']);
-        mark_article_processed($article['id']);
-        $count++;
-
-        if (php_sapi_name() === 'cli') {
+    foreach ($articles as $article) {
+        try {
+            $result = tag_article($article);
+            save_article_tags($article['id'], $result['tags']);
+            save_article_index($article['id'], 'anxiety', (float)$result['anxiety']);
+            mark_article_processed($article['id']);
+            $total_tagged++;
             echo "Tagged [{$article['id']}]: {$article['title']}\n";
             echo "  Tags: " . implode(', ', $result['tags']) . " | Anxiety: {$result['anxiety']}\n";
+        } catch (Exception $e) {
+            $total_errors++;
+            log_action('tag', 'error', "Article [{$article['id']}]: " . $e->getMessage());
+            echo "Error [{$article['id']}]: " . $e->getMessage() . "\n";
         }
-    } catch (Exception $e) {
-        $errors++;
-        log_action('tag', 'error', "Article [{$article['id']}]: " . $e->getMessage());
     }
 }
 
-log_action('tag', 'success', "{$count} articles tagged, {$errors} errors");
-
-if (php_sapi_name() === 'cli') {
-    echo "\nDone: {$count} tagged, {$errors} errors\n";
-} else {
-    header('Content-Type: application/json');
-    echo json_encode(['tagged' => $count, 'errors' => $errors]);
-}
+log_action('tag', 'success', "{$total_tagged} articles tagged, {$total_errors} errors");
+echo "\nDone: {$total_tagged} tagged, {$total_errors} errors\n";
