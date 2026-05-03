@@ -33,6 +33,7 @@ while (true) {
         }
 
         save_article_tags($article['id'], $r['tags'] ?? []);
+        save_article_country($article['id'], $r['country'] ?? null);
         save_article_index($article['id'], 'anxiety', (float)($r['anxiety'] ?? 5));
         mark_article_processed($article['id']);
         $total_tagged++;

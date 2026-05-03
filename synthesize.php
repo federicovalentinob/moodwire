@@ -8,8 +8,8 @@ $articles = db()->query('
     FROM articles a
     LEFT JOIN article_topics ato ON ato.article_id = a.id
     WHERE a.processed = 1 AND ato.article_id IS NULL
-    ORDER BY a.fetched_at DESC
-    LIMIT 100
+    ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
+    LIMIT 150
 ')->fetchAll();
 
 if (empty($articles)) {
@@ -101,7 +101,7 @@ foreach ($clusters as $cluster) {
             $bullets = array_filter(array_map('trim', preg_split('/\n|•|-/', $raw_b)));
             $bullets = array_values(array_slice($bullets, 0, 3));
         }
-        $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, 3));
+        $max_b = min(5, max(1, count($valid_ids))); $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, $max_b));
 
         $new_id = save_topic($title, $bullets, $anxiety_avg, $valid_ids);
         $saved_new++;
@@ -129,7 +129,7 @@ if (!empty($topics_needing_bullets)) {
             $bullets = array_filter(array_map('trim', preg_split('/\n|•|-/', $raw_b)));
             $bullets = array_values(array_slice($bullets, 0, 3));
         }
-        $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, 3));
+        $topic_art_count = db()->query("SELECT COUNT(*) FROM article_topics WHERE topic_id = {$topic_id}")->fetchColumn(); $max_b = min(5, max(1, (int)$topic_art_count)); $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, $max_b));
 
         db()->prepare('DELETE FROM topic_bullets WHERE topic_id = ?')->execute([$topic_id]);
         $st = db()->prepare('INSERT INTO topic_bullets (topic_id, bullet, display_order) VALUES (?, ?, ?)');

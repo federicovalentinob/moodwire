@@ -212,12 +212,19 @@ function tag_articles_batch(array $articles): array {
 
     if (!is_array($result)) return [];
 
-    // Index by article ID
     $indexed = [];
     foreach ($result as $r) {
         if (isset($r['id'])) $indexed[(int)$r['id']] = $r;
     }
     return $indexed;
+}
+
+function save_article_country(int $article_id, ?string $country): void {
+    if (!$country) return;
+    $country = strtoupper(trim($country));
+    if (strlen($country) !== 2) return;
+    db()->prepare("INSERT IGNORE INTO article_tags (article_id, tag) VALUES (?, ?)")
+       ->execute([$article_id, 'country:' . $country]);
 }
 
 // ─── Perplexity API ──────────────────────────────────────────────────────────
@@ -268,7 +275,9 @@ function get_latest_topics(): array {
                              LEFT JOIN article_tags at2 ON at2.article_id = a.id
                              LEFT JOIN article_indexes ai ON ai.article_id = a.id AND ai.index_name = "anxiety"
                              WHERE ato.topic_id = ?
-                             GROUP BY a.id');
+                             GROUP BY a.id
+                             ORDER BY a.published_at DESC, a.fetched_at DESC
+                             LIMIT 7');
         $st->execute([$topic['id']]);
         $topic['articles'] = $st->fetchAll();
     }

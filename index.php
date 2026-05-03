@@ -99,8 +99,12 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
           <span class="article-title"><?= htmlspecialchars($a['title']) ?></span>
           <span class="article-source"><?= htmlspecialchars($a['feed_name']) ?></span>
           <span class="article-tags">
-            <?php foreach ($a_tags as $t): ?>
-              <span class="tag"><?= htmlspecialchars($t) ?></span>
+            <?php foreach ($a_tags as $t):
+              if (str_starts_with($t, 'country:')): ?>
+                <span class="tag-country"><?= htmlspecialchars(substr($t, 8)) ?></span>
+              <?php else: ?>
+                <span class="tag"><?= htmlspecialchars($t) ?></span>
+              <?php endif; ?>
             <?php endforeach; ?>
           </span>
         </a>
