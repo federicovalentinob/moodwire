@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/functions.php';
 
-define('BATCH_SIZE', 10);
+define('BATCH_SIZE', 20);
 
 $total_tagged = 0;
 $total_errors = 0;
@@ -17,14 +17,21 @@ while (true) {
 
     foreach ($articles as $article) {
         $r = $results[$article['id']] ?? null;
+
+        // Fallback: retry as single article if batch missed it
         if (!$r) {
-            $total_errors++;
-            log_action('tag', 'error', "No result for article [{$article['id']}]");
-            echo "  No result for [{$article['id']}]: {$article['title']}\n";
-            // Mark processed anyway to avoid infinite loop
-            mark_article_processed($article['id']);
-            continue;
+            echo "  Retrying [{$article['id']}] individually...\n";
+            $single = tag_articles_batch([$article]);
+            $r = $single[$article['id']] ?? null;
         }
+
+        if (!$r) {
+            // API refused — assign neutral defaults so pipeline keeps moving
+            $r = ['tags' => ['news'], 'anxiety' => 5];
+            log_action('tag', 'warning', "Defaulted article [{$article['id']}] — API returned empty");
+            echo "  Defaulted [{$article['id']}]: {$article['title']}\n";
+        }
+
         save_article_tags($article['id'], $r['tags'] ?? []);
         save_article_index($article['id'], 'anxiety', (float)($r['anxiety'] ?? 5));
         mark_article_processed($article['id']);
