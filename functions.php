@@ -310,6 +310,14 @@ function save_topic(string $title, array $bullets, float $anxiety_avg, array $ar
 
 // ─── Display helpers ─────────────────────────────────────────────────────────
 
+function purge_empty_topics(): int {
+    return (int) db()->exec("
+        DELETE FROM topics WHERE id NOT IN (
+            SELECT DISTINCT topic_id FROM article_topics
+        )
+    ");
+}
+
 function time_ago(?string $datetime): string {
     if (!$datetime) return '';
     $diff = max(0, time() - strtotime($datetime));
