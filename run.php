@@ -8,6 +8,7 @@ $message = '';
 // ── Trigger a step as a background CLI process ────────────────────────────────
 if ($step) {
     $scripts = [
+        'all'        => 'pipeline.php',
         'fetch'      => 'fetch.php',
         'normalize'  => 'normalize.php',
         'tag'        => 'tag.php',
@@ -65,6 +66,13 @@ $logs = db()->query('SELECT * FROM logs ORDER BY created_at DESC LIMIT 30')->fet
     <div class="stat"><span><?= $stats['articles'] ?></span>Articles</div>
     <div class="stat"><span><?= $stats['unprocessed'] ?></span>Untagged</div>
     <div class="stat"><span><?= $stats['topics'] ?></span>Topics</div>
+  </div>
+
+  <div style="margin-bottom:24px">
+    <form method="POST">
+      <input type="hidden" name="step" value="all">
+      <button class="btn" style="padding:12px 32px;font-size:15px">▶ Run Full Pipeline</button>
+    </form>
   </div>
 
   <div class="pipeline">
