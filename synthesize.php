@@ -92,7 +92,7 @@ foreach ($clusters as $cluster) {
         // Create new topic — get bullet points first
         $art_titles = db()->query("SELECT title FROM articles WHERE id IN ({$ids_str})")->fetchAll(PDO::FETCH_COLUMN);
         $art_list   = implode("\n", array_map(fn($t) => "- {$t}", $art_titles));
-        $bp_prompt  = str_replace(['{{topic}}', '{{articles}}'], [$title, $art_list], $bullets_prompt_tpl);
+        $max_b = min(5, max(1, count($valid_ids))); $bp_prompt = str_replace(['{{topic}}', '{{articles}}', '{{num_bullets}}'], [$title, $art_list, (string)$max_b], $bullets_prompt_tpl);
 
         $raw_b   = call_perplexity($bp_prompt, $system);
         $bullets = json_decode(extract_json($raw_b), true);
@@ -121,7 +121,7 @@ if (!empty($topics_needing_bullets)) {
         if (empty($art_titles)) continue;
 
         $art_list  = implode("\n", array_map(fn($t) => "- {$t}", $art_titles));
-        $bp_prompt = str_replace(['{{topic}}', '{{articles}}'], [$title, $art_list], $bullets_prompt_tpl);
+        $topic_art_count = db()->query("SELECT COUNT(*) FROM article_topics WHERE topic_id = {$topic_id}")->fetchColumn(); $max_b = min(5, max(1, (int)$topic_art_count)); $bp_prompt = str_replace(['{{topic}}', '{{articles}}', '{{num_bullets}}'], [$title, $art_list, (string)$max_b], $bullets_prompt_tpl);
         $raw_b     = call_perplexity($bp_prompt, $system);
         $bullets   = json_decode(extract_json($raw_b), true);
 
