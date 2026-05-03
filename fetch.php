@@ -3,7 +3,9 @@
 require_once __DIR__ . '/functions.php';
 
 // Delete articles older than 24h
-$deleted = db()->exec("DELETE FROM articles WHERE fetched_at < NOW() - INTERVAL 24 HOUR");
+$deleted = db()->exec("DELETE FROM articles WHERE
+    fetched_at < NOW() - INTERVAL 24 HOUR
+    OR (published_at IS NOT NULL AND published_at < NOW() - INTERVAL 24 HOUR)");
 if ($deleted > 0) log_action('fetch', 'success', "Purged {$deleted} articles older than 24h");
 
 $feeds   = get_feeds(active_only: true);
