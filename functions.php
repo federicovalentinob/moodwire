@@ -185,19 +185,27 @@ function get_prompt(string $name): string {
     return $st->fetchColumn() ?: '';
 }
 
-function tag_article(array $article): array {
+function tag_articles_batch(array $articles): array {
+    $lines = '';
+    foreach ($articles as $a) {
+        $desc   = substr($a['clean_content'] ?? '', 0, 150);
+        $lines .= "ID:{$a['id']} | {$a['title']} | {$desc}\n";
+    }
+
     $prompt = get_prompt('tagging');
-    $prompt = str_replace('{{title}}',       $article['title'],        $prompt);
-    $prompt = str_replace('{{description}}', $article['clean_content'], $prompt);
-
-    $system = 'You are a JSON API. You only output raw valid JSON. No explanations, no citations, no markdown, no extra text. Only JSON.';
+    $prompt = str_replace('{{articles}}', $lines, $prompt);
+    $system = 'You are a JSON API. Output only a raw valid JSON array. No explanations, no citations, no markdown.';
     $raw    = call_perplexity($prompt, $system);
-    $json   = json_decode(extract_json($raw), true);
+    $result = json_decode(extract_json($raw), true);
 
-    return [
-        'tags'    => $json['tags']    ?? [],
-        'anxiety' => $json['anxiety'] ?? 5,
-    ];
+    if (!is_array($result)) return [];
+
+    // Index by article ID
+    $indexed = [];
+    foreach ($result as $r) {
+        if (isset($r['id'])) $indexed[(int)$r['id']] = $r;
+    }
+    return $indexed;
 }
 
 // ─── Perplexity API ──────────────────────────────────────────────────────────
