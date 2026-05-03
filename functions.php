@@ -310,6 +310,54 @@ function save_topic(string $title, array $bullets, float $anxiety_avg, array $ar
 
 // ─── Display helpers ─────────────────────────────────────────────────────────
 
+function regenerate_stale_bullets(): void {
+    require_once __DIR__ . '/config.php';
+
+    $system  = 'You are a JSON API. Output only a raw valid JSON array. No markdown, no citations, no extra text.';
+    $prompt_tpl = get_prompt('bullets');
+
+    // Find topics whose bullet count exceeds their current article count
+    $topics = db()->query('
+        SELECT t.id, t.title,
+               COUNT(ato.article_id) as article_count,
+               (SELECT COUNT(*) FROM topic_bullets WHERE topic_id = t.id) as bullet_count
+        FROM topics t
+        LEFT JOIN article_topics ato ON ato.topic_id = t.id
+        GROUP BY t.id
+        HAVING bullet_count > article_count OR article_count = 0
+    ')->fetchAll();
+
+    foreach ($topics as $topic) {
+        if ((int)$topic['article_count'] === 0) continue;
+
+        $art_titles = db()->query(
+            "SELECT a.title FROM articles a
+             JOIN article_topics ato ON ato.article_id = a.id
+             WHERE ato.topic_id = {$topic['id']}"
+        )->fetchAll(PDO::FETCH_COLUMN);
+
+        $art_list  = implode("\n", array_map(fn($t) => "- {$t}", $art_titles));
+        $max_b     = min(5, max(1, (int)$topic['article_count']));
+        $prompt    = str_replace(
+            ['{{topic}}', '{{articles}}', '{{num_bullets}}'],
+            [$topic['title'], $art_list, (string)$max_b],
+            $prompt_tpl
+        );
+
+        $raw     = call_perplexity($prompt, $system);
+        $bullets = json_decode(extract_json($raw), true);
+        if (!is_array($bullets) || count($bullets) < 1) continue;
+
+        $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, $max_b));
+
+        db()->prepare('DELETE FROM topic_bullets WHERE topic_id = ?')->execute([$topic['id']]);
+        $st = db()->prepare('INSERT INTO topic_bullets (topic_id, bullet, display_order) VALUES (?, ?, ?)');
+        foreach ($bullets as $i => $b) $st->execute([$topic['id'], $b, $i]);
+
+        log_action('fetch', 'success', "Regenerated bullets for topic [{$topic['id']}] {$topic['title']}");
+    }
+}
+
 function purge_empty_topics(): int {
     return (int) db()->exec("
         DELETE FROM topics WHERE id NOT IN (

@@ -10,6 +10,7 @@ if ($deleted > 0) {
     log_action('fetch', 'success', "Purged {$deleted} articles older than 24h");
     $purged_topics = purge_empty_topics();
     if ($purged_topics > 0) log_action('fetch', 'success', "Removed {$purged_topics} empty topics");
+    regenerate_stale_bullets();
 }
 
 $feeds   = get_feeds(active_only: true);
