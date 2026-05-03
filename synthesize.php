@@ -59,6 +59,8 @@ $saved_new   = 0;
 $saved_existing = 0;
 $topics_needing_bullets = []; // topic_id => [article titles]
 
+$solo_articles = []; // articles left alone — to be merged later
+
 foreach ($clusters as $cluster) {
     $title       = $cluster['title']    ?? 'Untitled';
     $topic_id    = isset($cluster['topic_id']) && $cluster['topic_id'] ? (int)$cluster['topic_id'] : null;
@@ -67,8 +69,15 @@ foreach ($clusters as $cluster) {
     if (empty($article_ids)) continue;
 
     // Validate article IDs belong to our unassigned set
-    $valid_ids = array_filter($article_ids, fn($id) => in_array((int)$id, array_column($articles, 'id')));
+    $valid_ids = array_values(array_filter($article_ids, fn($id) => in_array((int)$id, array_column($articles, 'id'))));
     if (empty($valid_ids)) continue;
+
+    // Enforce min 2 articles — queue solos for later merging
+    if (count($valid_ids) < 2) {
+        $solo_articles[] = (int)$valid_ids[0];
+        cli_log("  ⚠ Solo article [{$valid_ids[0]}] queued for merging");
+        continue;
+    }
 
     // Compute anxiety_avg
     $ids_str     = implode(',', array_map('intval', $valid_ids));
@@ -110,7 +119,22 @@ foreach ($clusters as $cluster) {
     }
 }
 
-// ── Step 3: Regenerate bullets for existing topics that got new articles ──────
+// ── Step 3: Merge solo articles into closest existing topic ───────────────────
+if (!empty($solo_articles)) {
+    cli_log("\nMerging " . count($solo_articles) . " solo article(s) into existing topics...");
+    // Find the topic with most articles as a catch-all fallback
+    $fallback = db()->query('SELECT id, title FROM topics ORDER BY (SELECT COUNT(*) FROM article_topics WHERE topic_id=topics.id) DESC LIMIT 1')->fetch();
+    if ($fallback) {
+        $st = db()->prepare('INSERT IGNORE INTO article_topics (article_id, topic_id) VALUES (?, ?)');
+        foreach ($solo_articles as $aid) {
+            $st->execute([$aid, $fallback['id']]);
+            cli_log("  → Merged [{$aid}] into [{$fallback['id']}] {$fallback['title']}");
+        }
+        $topics_needing_bullets[$fallback['id']] = $fallback['title'];
+    }
+}
+
+// ── Step 4: Regenerate bullets for existing topics that got new articles ──────
 if (!empty($topics_needing_bullets)) {
     cli_log("\nRegenerating bullets for " . count($topics_needing_bullets) . " updated topics...");
     foreach ($topics_needing_bullets as $topic_id => $title) {

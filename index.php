@@ -33,15 +33,6 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
     <a href="?anxiety=medium" class="filter-btn anxiety-medium <?= $filter_anx==='medium' ? 'active':'' ?>">Medium (4–6)</a>
     <a href="?anxiety=high"   class="filter-btn anxiety-high   <?= $filter_anx==='high'   ? 'active':'' ?>">High (7–10)</a>
 
-    <?php if ($all_tags): ?>
-      <span class="filter-sep">Tags:</span>
-      <?php foreach ($all_tags as $tag): ?>
-        <a href="?tag=<?= urlencode($tag) ?>"
-           class="filter-btn <?= $filter_tag === $tag ? 'active' : '' ?>">
-          <?= htmlspecialchars($tag) ?>
-        </a>
-      <?php endforeach; ?>
-    <?php endif; ?>
   </div>
 
   <?php if (empty($topics)): ?>
