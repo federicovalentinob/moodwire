@@ -336,45 +336,78 @@ types.forEach((type, ti) => {
       .paddingTop(d => d.depth === 1 ? 2 : 1) // extra padding between categories
       .tile(d3.treemapSliceDice)(root);
 
-    // Draw category blocs (depth=1 nodes) with a subtle border
-    svg.selectAll(null)
-      .data(root.descendants().filter(d => d.depth === 1))
-      .enter().append('rect')
-        .attr('x',      d => x + d.x0)
-        .attr('y',      d => y + d.y0)
-        .attr('width',  d => Math.max(0, d.x1 - d.x0))
-        .attr('height', d => Math.max(0, d.y1 - d.y0))
-        .attr('fill',   d => d.data.color)
-        .attr('opacity', 0.15)
-        .attr('stroke', d => d.data.color)
-        .attr('stroke-width', 2)
-        .attr('rx', 3)
+    // For each category bloc: create organic clip-path then draw its leaves inside
+    let catSeed = 7;
+    root.descendants().filter(d => d.depth === 1).forEach((cat, ci) => {
+      const bx = x + cat.x0, by = y + cat.y0;
+      const bw = Math.max(0, cat.x1 - cat.x0);
+      const bh = Math.max(0, cat.y1 - cat.y0);
+      if (bw < 4 || bh < 4) return;
+
+      // Unique clip id
+      const clipId = `cat-clip-${ti}-${bi}-${ci}`;
+
+      // Build organic polygon for this category's bounds
+      const steps = 6;
+      catSeed += 17;
+      let s = catSeed;
+      function r() { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; }
+      const jitter = Math.min(bw, bh) * 0.18;
+      const segs = [
+        ...Array.from({length:steps}, (_,i) => [bx + bw*i/steps, by]),
+        ...Array.from({length:steps}, (_,i) => [bx + bw,          by + bh*i/steps]),
+        ...Array.from({length:steps}, (_,i) => [bx + bw*(1-i/steps), by + bh]),
+        ...Array.from({length:steps}, (_,i) => [bx,                   by + bh*(1-i/steps)]),
+      ];
+      const path = segs.map(([px,py]) => {
+        const nx = px===bx ? 1 : px===bx+bw ? -1 : 0;
+        const ny = py===by ? 1 : py===by+bh ? -1 : 0;
+        const off = (r() - 0.3) * jitter;
+        return [px + nx*off, py + ny*off];
+      });
+      const d_attr = 'M' + path.map(p=>p.map(v=>v.toFixed(1)).join(',')).join('L') + 'Z';
+
+      // Add clipPath to SVG defs
+      const defs = document.querySelector('#map-svg defs');
+      const cp = document.createElementNS('http://www.w3.org/2000/svg','clipPath');
+      cp.setAttribute('id', clipId);
+      const pathEl = document.createElementNS('http://www.w3.org/2000/svg','path');
+      pathEl.setAttribute('d', d_attr);
+      cp.appendChild(pathEl);
+      defs.appendChild(cp);
+
+      // Category background
+      svg.append('path').attr('d', d_attr)
+        .attr('fill', cat.data.color).attr('opacity', 0.15)
+        .attr('stroke', cat.data.color).attr('stroke-width', 2)
         .attr('pointer-events', 'none');
 
-    // Draw topic leaves
-    svg.selectAll(null)
-      .data(root.leaves())
-      .enter().append('rect')
-        .attr('class', 'topic-rect')
-        .attr('x',      d => x + d.x0)
-        .attr('y',      d => y + d.y0)
-        .attr('width',  d => Math.max(0, d.x1 - d.x0))
-        .attr('height', d => Math.max(0, d.y1 - d.y0))
-        .attr('fill',   d => d.data.color)
-        .attr('stroke', d => anxietyColor(parseFloat(d.data.anxiety)))
-        .attr('rx', 2)
-        .on('mousemove', function(event, d) {
-          tip.style.display = 'block';
-          tip.style.left    = (event.clientX + 14) + 'px';
-          tip.style.top     = (event.clientY - 10) + 'px';
-          tip.innerHTML = `<strong>${d.data.name}</strong><br>
-            ${d.data.category} · ${d.data.type}<br>
-            Anxiety: ${parseFloat(d.data.anxiety).toFixed(1)} · ${d.data.count} article${d.data.count>1?'s':''}`;
-        })
-        .on('mouseleave', () => tip.style.display = 'none')
-        .on('click', (e, d) => {
-          window.location.href = `index.php?category=${encodeURIComponent(d.data.category)}`;
-        });
+      // Draw leaves inside category clip
+      const g = svg.append('g').attr('clip-path', `url(#${clipId})`);
+      g.selectAll(null)
+        .data(cat.leaves())
+        .enter().append('rect')
+          .attr('class', 'topic-rect')
+          .attr('x',      d => x + d.x0)
+          .attr('y',      d => y + d.y0)
+          .attr('width',  d => Math.max(0, d.x1 - d.x0))
+          .attr('height', d => Math.max(0, d.y1 - d.y0))
+          .attr('fill',   d => d.data.color)
+          .attr('stroke', d => anxietyColor(parseFloat(d.data.anxiety)))
+          .attr('rx', 1)
+          .on('mousemove', function(event, d) {
+            tip.style.display = 'block';
+            tip.style.left    = (event.clientX + 14) + 'px';
+            tip.style.top     = (event.clientY - 10) + 'px';
+            tip.innerHTML = `<strong>${d.data.name}</strong><br>
+              ${d.data.category} · ${d.data.type}<br>
+              Anxiety: ${parseFloat(d.data.anxiety).toFixed(1)} · ${d.data.count} article${d.data.count>1?'s':''}`;
+          })
+          .on('mouseleave', () => tip.style.display = 'none')
+          .on('click', (e, d) => {
+            window.location.href = `index.php?category=${encodeURIComponent(d.data.category)}`;
+          });
+    });
 
     // Label if cell is large enough
     if (w > 60 && h > 30) {
