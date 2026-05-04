@@ -131,6 +131,9 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
     </ul>
 
     <?php if (!empty($filtered_articles)): ?>
+    <button class="articles-toggle" onclick="var a=this.nextElementSibling;a.classList.toggle('open');this.classList.toggle('open');this.innerHTML=(this.classList.contains('open')?'▾':'▸')+' <?= count($filtered_articles) ?> article<?= count($filtered_articles) > 1 ? 's' : '' ?>'">
+      ▸ <?= count($filtered_articles) ?> article<?= count($filtered_articles) > 1 ? 's' : '' ?>
+    </button>
     <div class="articles">
       <?php foreach ($filtered_articles as $a):
         $a_anx   = (float)($a['anxiety'] ?? 5);

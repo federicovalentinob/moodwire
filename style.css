@@ -99,8 +99,14 @@ h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
   font-size: 13px;
 }
 
+/* Articles toggle */
+.articles-toggle { width:100%; background:none; border:none; border-top:1px solid #f1f5f9; padding:7px 18px; text-align:left; font-size:12px; color:#94a3b8; cursor:pointer; font-weight:500; }
+.articles-toggle:hover { color:#475569; background:#f8fafc; }
+.articles-toggle.open { color:#2563eb; }
+
 /* Articles */
-.articles { padding: 6px 0; }
+.articles { display:none; padding:6px 0; }
+.articles.open { display:block; }
 .article-row {
   display: flex;
   align-items: center;
