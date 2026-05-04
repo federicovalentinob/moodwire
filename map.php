@@ -197,7 +197,15 @@ foreach ($types as $type) {
       </div>
 
       <!-- Map SVG -->
-      <svg id="map-svg"></svg>
+      <svg id="map-svg">
+        <defs>
+          <filter id="organic" x="-2%" y="-2%" width="104%" height="104%">
+            <feTurbulence type="turbulence" baseFrequency="0.018 0.022" numOctaves="4" seed="3" result="noise"/>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="9" xChannelSelector="R" yChannelSelector="G"/>
+          </filter>
+        </defs>
+        <g id="map-content" filter="url(#organic)"></g>
+      </svg>
     </div>
   </div>
 
@@ -234,7 +242,7 @@ const H = Math.round(W * 0.65);
 document.getElementById('map-svg').setAttribute('viewBox', `0 0 ${W} ${H}`);
 document.getElementById('map-svg').setAttribute('height', H);
 
-const svg = d3.select('#map-svg');
+const svg = d3.select('#map-content');
 const tip = document.getElementById('tooltip');
 
 // Compute column widths & row heights proportional to total article counts
@@ -350,15 +358,16 @@ types.forEach((type, ti) => {
   });
 });
 
-// Draw grid lines between cells
+// Draw grid lines on root SVG (unfiltered, stay crisp)
+const rootSvg = d3.select('#map-svg');
 bands.forEach((b, i) => {
   if (i === 0) return;
-  svg.append('line').attr('class','band-line')
+  rootSvg.append('line').attr('class','band-line')
     .attr('x1',0).attr('y1',ry[i]).attr('x2',W).attr('y2',ry[i]);
 });
 types.forEach((t, i) => {
   if (i === 0) return;
-  svg.append('line').attr('class','type-line')
+  rootSvg.append('line').attr('class','type-line')
     .attr('x1',cx[i]).attr('y1',0).attr('x2',cx[i]).attr('y2',H);
 });
 </script>
