@@ -360,6 +360,77 @@ function regenerate_stale_bullets(): void {
     }
 }
 
+function compute_topic_geo(int $topic_id): ?string {
+    static $regions = [
+        'North America' => ['US','CA','MX'],
+        'Central America' => ['GT','BZ','HN','SV','NI','CR','PA','CU','HT','JM','DO','TT','BB','BS'],
+        'South America' => ['BR','AR','CL','CO','PE','VE','EC','BO','PY','UY','GY','SR'],
+        'Western Europe' => ['FR','DE','GB','IT','ES','NL','BE','CH','AT','PT','IE','LU','MC','AD','LI'],
+        'Northern Europe' => ['SE','NO','DK','FI','IS','EE','LV','LT'],
+        'Eastern Europe' => ['PL','CZ','SK','HU','RO','BG','HR','SI','RS','BA','ME','MK','AL','UA','BY','MD'],
+        'Middle East' => ['IR','IQ','SA','IL','LB','SY','YE','AE','QA','KW','JO','OM','BH','PS'],
+        'North Africa' => ['EG','LY','TN','DZ','MA','SD'],
+        'Sub-Saharan Africa' => ['ZA','NG','KE','ET','GH','SN','TZ','UG','CI','CM','AO','MZ','ZM','ZW','ML','BF','NE','TD','SO','ER','RW','MG'],
+        'Central Asia' => ['KZ','UZ','TM','KG','TJ','AF'],
+        'South Asia' => ['IN','PK','BD','LK','NP','BT','MV'],
+        'East Asia' => ['CN','JP','KR','TW','MN','HK'],
+        'Southeast Asia' => ['TH','VN','ID','MY','PH','SG','MM','KH','LA','BN','TL'],
+        'Oceania' => ['AU','NZ','PG','FJ','SB','VU','WS','TO','KI','FM'],
+        'Russia & CIS' => ['RU','GE','AM','AZ'],
+    ];
+
+    // Regional groupings (for when articles span multiple sub-regions)
+    static $super = [
+        'Europe' => ['Western Europe','Northern Europe','Eastern Europe'],
+        'Americas' => ['North America','Central America','South America'],
+        'Africa' => ['North Africa','Sub-Saharan Africa'],
+        'Asia' => ['Central Asia','South Asia','East Asia','Southeast Asia'],
+    ];
+
+    // Get country codes for articles in this topic
+    $codes = db()->query("
+        SELECT DISTINCT UPPER(SUBSTRING(at2.tag, 9)) as code
+        FROM article_tags at2
+        JOIN article_topics ato ON ato.article_id = at2.article_id
+        WHERE ato.topic_id = {$topic_id} AND at2.tag LIKE 'country:%'
+    ")->fetchAll(PDO::FETCH_COLUMN);
+
+    if (empty($codes)) return null;
+
+    // Build reverse map: country → region
+    $country_to_region = [];
+    foreach ($regions as $region => $countries) {
+        foreach ($countries as $c) $country_to_region[$c] = $region;
+    }
+
+    // Map codes to regions
+    $article_regions = [];
+    foreach ($codes as $code) {
+        $article_regions[] = $country_to_region[$code] ?? null;
+    }
+    $article_regions = array_values(array_unique(array_filter($article_regions)));
+
+    // If all articles from one country
+    $unique_codes = array_unique($codes);
+    if (count($unique_codes) === 1) return $unique_codes[0];
+
+    // If all in same region
+    if (count($article_regions) === 1) return $article_regions[0];
+
+    // If all in same super-region
+    foreach ($super as $super_name => $sub_regions) {
+        $all_in_super = count(array_filter($article_regions, fn($r) => in_array($r, $sub_regions))) === count($article_regions);
+        if ($all_in_super) return $super_name;
+    }
+
+    return 'International';
+}
+
+function update_topic_geo(int $topic_id): void {
+    $geo = compute_topic_geo($topic_id);
+    db()->prepare('UPDATE topics SET geo = ? WHERE id = ?')->execute([$geo, $topic_id]);
+}
+
 function purge_empty_topics(): int {
     return (int) db()->exec("
         DELETE FROM topics WHERE id NOT IN (

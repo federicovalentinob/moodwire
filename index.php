@@ -86,6 +86,9 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
       </h2>
       <div style="display:flex;gap:6px;align-items:center">
         <span class="type-badge type-<?= $content_type ?>"><?= $type_labels[$content_type] ?></span>
+        <?php if (!empty($topic['geo'])): ?>
+          <span class="geo-badge"><?= htmlspecialchars($topic['geo']) ?></span>
+        <?php endif; ?>
         <span class="anxiety-badge" style="background:<?= $color ?>"><?= $label ?> <?= number_format($anx, 1) ?></span>
       </div>
     </div>

@@ -95,6 +95,7 @@ foreach ($clusters as $cluster) {
         db()->prepare('UPDATE topics SET anxiety_avg = (SELECT AVG(ai.score) FROM article_indexes ai JOIN article_topics ato ON ato.article_id = ai.article_id WHERE ato.topic_id = ? AND ai.index_name = "anxiety") WHERE id = ?')
             ->execute([$topic_id, $topic_id]);
 
+        update_topic_geo($topic_id);
         $topics_needing_bullets[$topic_id] = $title;
         $saved_existing++;
         cli_log("  → Assigned to existing [{$topic_id}] {$title}");
@@ -114,6 +115,7 @@ foreach ($clusters as $cluster) {
         $max_b = min(5, max(1, count($valid_ids))); $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, $max_b));
 
         $new_id = save_topic($title, $bullets, $anxiety_avg, $valid_ids, $content_type);
+        update_topic_geo($new_id);
         $saved_new++;
         cli_log("  + New topic [{$new_id}] {$title} (anxiety: " . round($anxiety_avg, 1) . ")");
         foreach ($bullets as $b) cli_log("    • {$b}");
