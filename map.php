@@ -199,12 +199,15 @@ foreach ($types as $type) {
       <!-- Map SVG -->
       <svg id="map-svg">
         <defs>
-          <filter id="organic" x="-2%" y="-2%" width="104%" height="104%">
+          <filter id="organic" x="-5%" y="-5%" width="110%" height="110%">
             <feTurbulence type="turbulence" baseFrequency="0.012 0.015" numOctaves="5" seed="3" result="noise"/>
             <feDisplacementMap in="SourceGraphic" in2="noise" scale="40" xChannelSelector="R" yChannelSelector="G"/>
           </filter>
+          <clipPath id="organic-clip">
+            <path id="organic-clip-path"/>
+          </clipPath>
         </defs>
-        <g id="map-content" filter="url(#organic)"></g>
+        <g id="map-content" filter="url(#organic)" clip-path="url(#organic-clip)"></g>
       </svg>
     </div>
   </div>
@@ -270,6 +273,34 @@ const rh = rowHeights.map(h => h/hSum * H);
 // Cumulative offsets
 const cx = [0, cw[0], cw[0]+cw[1]];
 const ry = [0, rh[0], rh[0]+rh[1]];
+
+// Build organic clip-path — perimeter points with noise-based offsets
+function buildOrganicClip(W, H, steps, jitter) {
+  const pts = [];
+  const segs = [
+    // top edge: left→right
+    ...Array.from({length: steps}, (_,i) => [W * i / steps, 0]),
+    // right edge: top→bottom
+    ...Array.from({length: steps}, (_,i) => [W, H * i / steps]),
+    // bottom edge: right→left
+    ...Array.from({length: steps}, (_,i) => [W * (1 - i / steps), H]),
+    // left edge: bottom→top
+    ...Array.from({length: steps}, (_,i) => [0, H * (1 - i / steps)]),
+  ];
+  // Simple seeded pseudo-random for stable shape
+  let seed = 42;
+  function rand() { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return (seed >>> 0) / 0xffffffff; }
+
+  const path = segs.map(([x, y], i) => {
+    const inward = (rand() - 0.3) * jitter;
+    // Push inward toward center
+    const nx = x === 0 ? 1 : x === W ? -1 : 0;
+    const ny = y === 0 ? 1 : y === H ? -1 : 0;
+    return [x + nx * inward, y + ny * inward];
+  });
+  return 'M' + path.map(p => p.map(v => v.toFixed(1)).join(',')).join('L') + 'Z';
+}
+document.getElementById('organic-clip-path').setAttribute('d', buildOrganicClip(W, H, 12, 55));
 
 // Align Y-axis labels to actual band heights
 ['high','medium','low'].forEach((b,i) => {
