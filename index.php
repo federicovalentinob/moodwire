@@ -5,7 +5,10 @@ require_once __DIR__ . '/functions.php';
 $topics      = get_latest_topics();
 $filter_tag  = trim($_GET['tag']     ?? '');
 $filter_anx  = trim($_GET['anxiety'] ?? '');
-$filter_type = trim($_GET['type']    ?? '');
+$filter_type = trim($_GET['type']     ?? '');
+$filter_cat  = trim($_GET['category'] ?? '');
+
+$categories = ['Politics','Geopolitics','Economy','Technology','Science','Health','Society','Crime','Environment','Sports','Entertainment','Travel','Food'];
 
 // Counts for filter buttons
 $counts = db()->query("
@@ -19,6 +22,8 @@ $counts = db()->query("
         SUM(content_type = 'entertainment') as entertainment
     FROM topics
 ")->fetch();
+
+$cat_counts = db()->query("SELECT category, COUNT(*) as c FROM topics WHERE category IS NOT NULL GROUP BY category")->fetchAll(PDO::FETCH_KEY_PAIR);
 
 // Collect all unique tags across articles
 $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->fetchAll(PDO::FETCH_COLUMN);
@@ -46,6 +51,13 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
     <a href="?anxiety=low"    class="filter-btn anxiety-low    <?= $filter_anx==='low'    ? 'active':'' ?>">Low <span class="filter-count"><?= $counts['low'] ?></span></a>
     <a href="?anxiety=medium" class="filter-btn anxiety-medium <?= $filter_anx==='medium' ? 'active':'' ?>">Medium <span class="filter-count"><?= $counts['medium'] ?></span></a>
     <a href="?anxiety=high"   class="filter-btn anxiety-high   <?= $filter_anx==='high'   ? 'active':'' ?>">High <span class="filter-count"><?= $counts['high'] ?></span></a>
+
+    <span class="filter-sep">Category:</span>
+    <?php foreach ($categories as $cat): $cc = $cat_counts[$cat] ?? 0; if (!$cc) continue; ?>
+      <a href="?category=<?= urlencode($cat) ?>" class="filter-btn <?= $filter_cat===$cat ? 'active':'' ?>">
+        <?= $cat ?> <span class="filter-count"><?= $cc ?></span>
+      </a>
+    <?php endforeach; ?>
 
     <span class="filter-sep">Type:</span>
     <a href="?type=informative"   class="filter-btn <?= $filter_type==='informative'   ? 'active':'' ?>">Informative <span class="filter-count"><?= $counts['informative'] ?></span></a>
@@ -77,6 +89,9 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
     // Filter by content type
     if ($filter_type && ($topic['content_type'] ?? '') !== $filter_type) continue;
 
+    // Filter by category
+    if ($filter_cat && ($topic['category'] ?? '') !== $filter_cat) continue;
+
     $content_type = $topic['content_type'] ?? 'informative';
     $type_labels  = ['informative' => 'Informative', 'educative' => 'Educative', 'entertainment' => 'Entertainment'];
 
@@ -98,6 +113,9 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
         <?php endif; ?>
       </h2>
       <div style="display:flex;gap:6px;align-items:center">
+        <?php if (!empty($topic['category'])): ?>
+          <span class="geo-badge"><?= htmlspecialchars($topic['category']) ?></span>
+        <?php endif; ?>
         <span class="type-badge type-<?= $content_type ?>"><?= $type_labels[$content_type] ?></span>
         <?php if (!empty($topic['geo'])): ?>
           <span class="geo-badge"><?= htmlspecialchars($topic['geo']) ?></span>
