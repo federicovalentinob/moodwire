@@ -53,6 +53,22 @@ if (!$clusters || !is_array($clusters)) {
 
 cli_log('Got ' . count($clusters) . ' clusters. Processing...');
 
+function dedupe_bullets(array $bullets): array {
+    $seen = [];
+    $out  = [];
+    foreach ($bullets as $b) {
+        $b = trim($b);
+        if (!$b) continue;
+        // Fingerprint: first 4 words lowercased
+        $fp = implode(' ', array_slice(explode(' ', strtolower($b)), 0, 4));
+        if (!in_array($fp, $seen)) {
+            $seen[] = $fp;
+            $out[]  = $b;
+        }
+    }
+    return $out;
+}
+
 // ── Step 2: Save clusters + generate bullets ──────────────────────────────────
 $bullets_prompt_tpl = get_prompt('bullets');
 $saved_new   = 0;
@@ -113,7 +129,7 @@ foreach ($clusters as $cluster) {
             $bullets = array_filter(array_map('trim', preg_split('/\n|•|-/', $raw_b)));
             $bullets = array_values(array_slice($bullets, 0, 3));
         }
-        $max_b = min(5, max(1, count($valid_ids))); $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, $max_b));
+        $bullets = dedupe_bullets($bullets); $max_b = min(5, max(1, count($valid_ids))); $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, $max_b));
 
         $new_id = save_topic($title, $bullets, $anxiety_avg, $valid_ids, $content_type, $category);
         update_topic_geo($new_id);
@@ -157,7 +173,7 @@ if (!empty($topics_needing_bullets)) {
             $bullets = array_filter(array_map('trim', preg_split('/\n|•|-/', $raw_b)));
             $bullets = array_values(array_slice($bullets, 0, 3));
         }
-        $topic_art_count = db()->query("SELECT COUNT(*) FROM article_topics WHERE topic_id = {$topic_id}")->fetchColumn(); $max_b = min(5, max(1, (int)$topic_art_count)); $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, $max_b));
+        $topic_art_count = db()->query("SELECT COUNT(*) FROM article_topics WHERE topic_id = {$topic_id}")->fetchColumn(); $bullets = dedupe_bullets($bullets); $max_b = min(5, max(1, (int)$topic_art_count)); $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, $max_b));
 
         db()->prepare('DELETE FROM topic_bullets WHERE topic_id = ?')->execute([$topic_id]);
         $st = db()->prepare('INSERT INTO topic_bullets (topic_id, bullet, display_order) VALUES (?, ?, ?)');
