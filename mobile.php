@@ -155,6 +155,9 @@ const sphereGroup = new THREE.Group();
 sphereGroup.position.y = -16;
 scene.add(sphereGroup);
 
+// ── Globe radius ─────────────────────────────────────────────────────────────
+const R = 18;
+
 // Planet base sphere
 const planetGeo = new THREE.SphereGeometry(R, 64, 64);
 const planetMat = new THREE.MeshPhongMaterial({ color: 0x0d1b2a, shininess: 10 });
@@ -179,8 +182,6 @@ controls.autoRotate      = true;
 controls.autoRotateSpeed = 0.35;
 controls.update();
 
-// ── Globe radius ─────────────────────────────────────────────────────────────
-const R = 18;
 
 // ── Coordinate mapping ────────────────────────────────────────────────────────
 // Y (vertical): anxiety — high=top (phi≈0), low=bottom (phi≈π)
