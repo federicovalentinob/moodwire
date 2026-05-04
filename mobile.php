@@ -173,10 +173,59 @@ const planet = new THREE.Group();
 planet.position.y = -9;
 scene.add(planet);
 
+// Planet texture — anxiety heatmap
+function buildAnxietyTexture() {
+  const TW = 512, TH = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = TW; canvas.height = TH;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(TW, TH);
+
+  const nodeCoords = nodes.map(d => ({
+    phi:   nodePhi(d), theta: nodeTheta(d), anxiety: d.anxiety
+  }));
+
+  for (let y = 0; y < TH; y++) {
+    for (let x = 0; x < TW; x++) {
+      const phi   = (y / TH) * Math.PI;
+      const theta = (x / TW) * 2 * Math.PI - Math.PI;
+      const px = Math.sin(phi)*Math.cos(theta);
+      const py = Math.cos(phi);
+      const pz = Math.sin(phi)*Math.sin(theta);
+
+      let wSum = 0, anxSum = 0;
+      for (const n of nodeCoords) {
+        const nx = Math.sin(n.phi)*Math.cos(n.theta);
+        const ny = Math.cos(n.phi);
+        const nz = Math.sin(n.phi)*Math.sin(n.theta);
+        const dot = Math.max(-1, Math.min(1, px*nx + py*ny + pz*nz));
+        const w = Math.exp(-Math.acos(dot) * Math.acos(dot) / 0.35);
+        wSum   += w; anxSum += w * n.anxiety;
+      }
+
+      const a = wSum > 0 ? anxSum / wSum : 5;
+      const t = a / 10;
+      let r, g, b;
+      if (t < 0.5) {
+        const s = t * 2;
+        r = Math.round(10 + s * 55); g = Math.round(55 + s * 25); b = Math.round(25 - s * 15);
+      } else {
+        const s = (t - 0.5) * 2;
+        r = Math.round(65 + s * 80); g = Math.round(80 - s * 70); b = Math.round(10 - s * 5);
+      }
+
+      const idx = (y * TW + x) * 4;
+      img.data[idx]=r; img.data[idx+1]=g; img.data[idx+2]=b; img.data[idx+3]=255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return new THREE.CanvasTexture(canvas);
+}
+
 // Dark planet base
 planet.add(new THREE.Mesh(
   new THREE.SphereGeometry(R, 64, 64),
-  new THREE.MeshPhongMaterial({ color:0x0d1b2a, shininess:8 })
+  new THREE.MeshPhongMaterial({ map: buildAnxietyTexture(), shininess: 12 })
 ));
 // Atmosphere
 planet.add(new THREE.Mesh(
