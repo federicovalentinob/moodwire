@@ -197,29 +197,38 @@ controls.autoRotate     = true;
 controls.autoRotateSpeed = 0.35;
 controls.update();
 
-// ── Place dots ────────────────────────────────────────────────────────────────
+// ── Place towers ──────────────────────────────────────────────────────────────
 const meshes = [];
 const positions = nodes.map(d => toXYZ(nodePhi(d), nodeTheta(d)));
+const UP = new THREE.Vector3(0, 1, 0);
+const minH = 0.15, maxH = 2.8;
+const towerH = d => minH + (d.count / maxCount) * (maxH - minH);
+const towerR = 0.09;
 
 nodes.forEach((d, i) => {
-  const pos  = positions[i];
-  const r    = dotR(d);
-  const geo  = new THREE.SphereGeometry(r, 14, 14);
+  const surfacePos = positions[i];
+  const normal     = surfacePos.clone().normalize();
+  const h          = towerH(d);
+  const quat       = new THREE.Quaternion().setFromUnitVectors(UP, normal);
 
-  // Outer ring (anxiety color)
-  const ringGeo = new THREE.SphereGeometry(r * 1.3, 14, 14);
-  const ringMat = new THREE.MeshPhongMaterial({ color: anxColor(d.anxiety), transparent:true, opacity:0.55, side:THREE.BackSide });
-  const ring = new THREE.Mesh(ringGeo, ringMat);
-  ring.position.copy(pos);
-  planet.add(ring);
-
-  // Dot (category color)
-  const mat  = new THREE.MeshPhongMaterial({ color: hexInt(d.color), shininess:60, emissive: anxColor(d.anxiety), emissiveIntensity:0.12 });
+  // Tower body (category color, slight taper)
+  const geo = new THREE.CylinderGeometry(towerR * 0.7, towerR, h, 7);
+  const mat = new THREE.MeshPhongMaterial({ color: hexInt(d.color), shininess: 80 });
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.copy(pos);
+  mesh.position.copy(normal.clone().multiplyScalar(R + h / 2));
+  mesh.quaternion.copy(quat);
   mesh.userData = d;
   planet.add(mesh);
   meshes.push(mesh);
+
+  // Top cap (anxiety color)
+  const capGeo = new THREE.SphereGeometry(towerR * 0.85, 10, 10);
+  const capMat = new THREE.MeshPhongMaterial({ color: anxColor(d.anxiety), shininess: 120, emissive: anxColor(d.anxiety), emissiveIntensity: 0.3 });
+  const cap = new THREE.Mesh(capGeo, capMat);
+  cap.position.copy(normal.clone().multiplyScalar(R + h));
+  cap.userData = d;
+  planet.add(cap);
+  meshes.push(cap);
 });
 
 // ── Links (arcs along sphere surface) ────────────────────────────────────────
