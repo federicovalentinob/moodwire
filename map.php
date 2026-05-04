@@ -1,114 +1,131 @@
 <?php
 require_once __DIR__ . '/functions.php';
 
-$categories = ['Politics','Geopolitics','Economy','Technology','Science','Health','Society','Crime','Environment','Sports','Entertainment','Travel','Food'];
-$types      = ['informative','educative','entertainment'];
-$type_labels = ['informative'=>'Informative','educative'=>'Educative','entertainment'=>'Entertainment'];
+$types      = ['informative', 'educative', 'entertainment'];
+$anx_bands  = [
+    'high'   => ['label' => 'High Anxiety',   'min' => 7,  'max' => 10],
+    'medium' => ['label' => 'Medium Anxiety',  'min' => 4,  'max' => 6.99],
+    'low'    => ['label' => 'Low Anxiety',     'min' => 0,  'max' => 3.99],
+];
 
 $topics = db()->query("
-    SELECT t.*, COUNT(ato.article_id) as article_count
+    SELECT t.title, t.content_type, t.category, t.anxiety_avg,
+           COUNT(ato.article_id) as article_count
     FROM topics t
     LEFT JOIN article_topics ato ON ato.topic_id = t.id
     WHERE t.category IS NOT NULL AND t.content_type IS NOT NULL
     GROUP BY t.id
-    ORDER BY t.anxiety_avg DESC
+    HAVING article_count > 0
 ")->fetchAll();
+
+// Category colours
+$cat_colors = [
+    'Politics'      => '#3b82f6',
+    'Geopolitics'   => '#8b5cf6',
+    'Economy'       => '#10b981',
+    'Technology'    => '#06b6d4',
+    'Science'       => '#0ea5e9',
+    'Health'        => '#f43f5e',
+    'Society'       => '#f59e0b',
+    'Crime'         => '#991b1b',
+    'Environment'   => '#16a34a',
+    'Sports'        => '#ea580c',
+    'Entertainment' => '#ec4899',
+    'Travel'        => '#7c3aed',
+    'Food'          => '#ca8a04',
+];
+
+// Group topics into 9 cells (type × anxiety)
+$cells = [];
+foreach ($types as $type) {
+    foreach (array_keys($anx_bands) as $band) {
+        $cells[$type][$band] = [];
+    }
+}
+foreach ($topics as $t) {
+    $anx = (float)$t['anxiety_avg'];
+    $band = $anx >= 7 ? 'high' : ($anx >= 4 ? 'medium' : 'low');
+    $cells[$t['content_type']][$band][] = $t;
+}
+
+// Compute cell weights (for grid sizing)
+$type_counts = array_map(fn($b) => array_sum(array_map(fn($c) => count($c), $b)), $cells);
+$band_counts = [];
+foreach (array_keys($anx_bands) as $band) {
+    $band_counts[$band] = array_sum(array_map(fn($t) => count($cells[$t][$band]), $types));
+}
+$total = max(1, array_sum($type_counts));
+
+// Build JSON for D3
+$d3_data = ['name' => 'root', 'children' => []];
+foreach ($types as $type) {
+    $type_node = ['name' => $type, 'children' => []];
+    foreach (array_keys($anx_bands) as $band) {
+        $band_node = ['name' => $band, 'children' => []];
+        foreach ($cells[$type][$band] as $t) {
+            $band_node['children'][] = [
+                'name'     => $t['title'],
+                'category' => $t['category'],
+                'anxiety'  => $t['anxiety_avg'],
+                'count'    => (int)$t['article_count'],
+                'type'     => $t['content_type'],
+                'band'     => $band,
+                'color'    => $cat_colors[$t['category']] ?? '#94a3b8',
+            ];
+        }
+        $type_node['children'][] = $band_node;
+    }
+    $d3_data['children'][] = $type_node;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Moodwire — Topic Map</title>
+<title>Moodwire — Map</title>
 <link rel="stylesheet" href="style.css">
 <style>
-  .map-wrap { overflow-x: auto; padding-bottom: 20px; }
-  .map-grid {
-    display: grid;
-    grid-template-columns: 100px repeat(<?= count($categories) ?>, 1fr);
-    grid-template-rows: auto repeat(<?= count($types) ?>, auto);
-    gap: 2px;
-    min-width: 900px;
-  }
-  .map-corner { background: transparent; }
-  .map-col-header {
-    background: #1e3a5f;
-    color: white;
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    text-align: center;
-    padding: 8px 4px;
-    border-radius: 4px;
-  }
-  .map-row-header {
-    background: #1e3a5f;
-    color: white;
-    font-size: 11px;
-    font-weight: 700;
-    writing-mode: vertical-lr;
-    transform: rotate(180deg);
-    text-align: center;
-    padding: 12px 6px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .map-cell {
-    background: #f8fafc;
-    border-radius: 6px;
-    padding: 6px;
-    min-height: 80px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    align-content: flex-start;
-  }
-  .map-cell:empty { background: #f1f5f9; }
-  .topic-bubble {
-    display: block;
-    padding: 4px 7px;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 600;
-    color: white;
-    cursor: pointer;
-    text-decoration: none;
-    line-height: 1.3;
-    max-width: 100%;
-    word-break: break-word;
-    transition: opacity 0.15s;
-  }
-  .topic-bubble:hover { opacity: 0.85; }
-  .legend {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-  }
-  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
-  .legend-dot { width: 16px; height: 16px; border-radius: 50%; }
+  #map-svg { width: 100%; border-radius: 10px; overflow: hidden; }
+  .topic-rect { cursor: pointer; stroke: white; stroke-width: 1.5; transition: opacity 0.15s; }
+  .topic-rect:hover { opacity: 0.75; stroke-width: 2.5; }
+  .cell-label { pointer-events: none; font-family: -apple-system, sans-serif; }
+  .axis-label { font-size: 12px; font-weight: 700; fill: #1e293b; font-family: -apple-system, sans-serif; }
+  .band-line { stroke: white; stroke-width: 3; }
+  .type-line { stroke: white; stroke-width: 3; }
 
   /* Tooltip */
-  .topic-bubble[data-tip] { position: relative; }
-  .topic-bubble[data-tip]:hover::after {
-    content: attr(data-tip);
-    position: absolute;
-    bottom: 110%;
-    left: 50%;
-    transform: translateX(-50%);
+  #tooltip {
+    position: fixed;
     background: #1e293b;
     color: #f1f5f9;
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-size: 11px;
-    white-space: nowrap;
-    z-index: 999;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
     pointer-events: none;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    font-weight: normal;
+    display: none;
+    z-index: 999;
+    max-width: 260px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    line-height: 1.5;
+  }
+
+  /* Legend */
+  .legend-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+  .legend-dot  { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+  /* Axis labels outside map */
+  .map-outer { position: relative; }
+  .axis-x-labels { display: flex; margin-left: 48px; margin-bottom: 4px; }
+  .axis-x-label  { flex: 1; text-align: center; font-size: 12px; font-weight: 700; color: #1e3a5f; text-transform: uppercase; letter-spacing: 0.5px; }
+  .axis-y-wrap   { display: flex; align-items: stretch; }
+  .axis-y-labels { display: flex; flex-direction: column; width: 48px; flex-shrink: 0; }
+  .axis-y-label  {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    writing-mode: vertical-lr; transform: rotate(180deg);
+    font-size: 11px; font-weight: 700; color: #1e3a5f;
+    text-transform: uppercase; letter-spacing: 0.5px;
   }
 </style>
 </head>
@@ -124,57 +141,146 @@ $topics = db()->query("
 
   <h1>Topic Map</h1>
 
-  <div class="legend">
-    <strong style="font-size:12px">Anxiety:</strong>
-    <div class="legend-item"><div class="legend-dot" style="background:#16a34a"></div> Low (0–3)</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#ca8a04"></div> Medium (4–6)</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#dc2626"></div> High (7–10)</div>
-    <span style="color:#94a3b8;font-size:11px;margin-left:8px">Hover a topic to see its title. Click to view articles.</span>
+  <!-- Category legend -->
+  <div class="legend-grid">
+    <?php foreach ($cat_colors as $cat => $col): ?>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:<?= $col ?>"></div>
+        <?= $cat ?>
+      </div>
+    <?php endforeach; ?>
   </div>
 
-  <div class="map-wrap">
-    <div class="map-grid">
+  <div class="map-outer">
+    <!-- X axis labels (Type) -->
+    <div class="axis-x-labels">
+      <div class="axis-x-label">Informative</div>
+      <div class="axis-x-label">Educative</div>
+      <div class="axis-x-label">Entertainment</div>
+    </div>
 
-      <!-- Corner -->
-      <div class="map-corner"></div>
+    <div class="axis-y-wrap">
+      <!-- Y axis labels (Anxiety) -->
+      <div class="axis-y-labels">
+        <div class="axis-y-label" style="color:#dc2626">High</div>
+        <div class="axis-y-label" style="color:#ca8a04">Medium</div>
+        <div class="axis-y-label" style="color:#16a34a">Low</div>
+      </div>
 
-      <!-- Column headers (categories) -->
-      <?php foreach ($categories as $cat): ?>
-        <div class="map-col-header"><?= $cat ?></div>
-      <?php endforeach; ?>
-
-      <!-- Rows (types) -->
-      <?php foreach ($types as $type): ?>
-
-        <!-- Row header -->
-        <div class="map-row-header"><?= $type_labels[$type] ?></div>
-
-        <!-- Cells -->
-        <?php foreach ($categories as $cat): ?>
-          <div class="map-cell">
-            <?php foreach ($topics as $t):
-              if (($t['content_type'] ?? '') !== $type) continue;
-              if (($t['category']     ?? '') !== $cat)  continue;
-              $anx = (float)$t['anxiety_avg'];
-              if      ($anx <= 3) $color = '#16a34a';
-              elseif  ($anx <= 6) $color = '#ca8a04';
-              else                $color = '#dc2626';
-              $opacity = 0.6 + ($anx / 10) * 0.4; // more intense = more anxious
-            ?>
-              <a href="index.php?category=<?= urlencode($cat) ?>&type=<?= $type ?>"
-                 class="topic-bubble"
-                 style="background:<?= $color ?>;opacity:<?= round($opacity,2) ?>"
-                 data-tip="<?= htmlspecialchars($t['title']) ?> (<?= number_format($anx,1) ?>)">
-                <?= htmlspecialchars(implode(' ', array_slice(explode(' ', $t['title']), 0, 3))) ?>…
-              </a>
-            <?php endforeach; ?>
-          </div>
-        <?php endforeach; ?>
-
-      <?php endforeach; ?>
-
+      <!-- Map SVG -->
+      <svg id="map-svg"></svg>
     </div>
   </div>
+
+  <div id="tooltip"></div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script>
+const data    = <?= json_encode($d3_data) ?>;
+const types   = <?= json_encode($types) ?>;
+const bands   = ['high','medium','low'];
+const bandLabels = {high:'High',medium:'Medium',low:'Low'};
+
+const W = document.getElementById('map-svg').parentElement.clientWidth;
+const H = Math.round(W * 0.65);
+document.getElementById('map-svg').setAttribute('viewBox', `0 0 ${W} ${H}`);
+document.getElementById('map-svg').setAttribute('height', H);
+
+const svg = d3.select('#map-svg');
+const tip = document.getElementById('tooltip');
+
+// Compute column widths & row heights proportional to topic counts
+function countCell(type, band) {
+  const typeNode = data.children.find(d => d.name === type);
+  const bandNode = typeNode?.children.find(d => d.name === band);
+  return bandNode?.children.length || 0;
+}
+
+const typeTotals = types.map(t => bands.reduce((s,b) => s + countCell(t,b), 0));
+const bandTotals = bands.map(b => types.reduce((s,t) => s + countCell(t,b), 0));
+const total = typeTotals.reduce((a,b) => a+b, 0) || 1;
+
+const colWidths  = typeTotals.map(n => Math.max(n/total * W, W/3 * 0.2));
+const rowHeights = bandTotals.map(n => Math.max(n/total * H, H/3 * 0.2));
+
+// Normalize
+const wSum = colWidths.reduce((a,b)=>a+b,0);
+const hSum = rowHeights.reduce((a,b)=>a+b,0);
+const cw = colWidths.map(w => w/wSum * W);
+const rh = rowHeights.map(h => h/hSum * H);
+
+// Cumulative offsets
+const cx = [0, cw[0], cw[0]+cw[1]];
+const ry = [0, rh[0], rh[0]+rh[1]];
+
+// Draw each cell as a mini treemap
+types.forEach((type, ti) => {
+  bands.forEach((band, bi) => {
+    const typeNode = data.children.find(d => d.name === type);
+    const bandNode = typeNode?.children.find(d => d.name === band);
+    const topics   = bandNode?.children || [];
+    if (!topics.length) return;
+
+    const x = cx[ti], y = ry[bi], w = cw[ti], h = rh[bi];
+
+    // Build treemap for this cell
+    const root = d3.hierarchy({ children: topics })
+      .sum(d => d.count || 1)
+      .sort((a,b) => b.value - a.value);
+
+    d3.treemap()
+      .size([w, h])
+      .padding(2)
+      .tile(d3.treemapSquarify)(root);
+
+    svg.selectAll(null)
+      .data(root.leaves())
+      .enter().append('rect')
+        .attr('class', 'topic-rect')
+        .attr('x',      d => x + d.x0)
+        .attr('y',      d => y + d.y0)
+        .attr('width',  d => d.x1 - d.x0)
+        .attr('height', d => d.y1 - d.y0)
+        .attr('fill',   d => d.data.color)
+        .attr('rx', 2)
+        .on('mousemove', function(event, d) {
+          tip.style.display = 'block';
+          tip.style.left    = (event.clientX + 14) + 'px';
+          tip.style.top     = (event.clientY - 10) + 'px';
+          tip.innerHTML = `<strong>${d.data.name}</strong><br>
+            ${d.data.category} · ${d.data.type}<br>
+            Anxiety: ${parseFloat(d.data.anxiety).toFixed(1)} · ${d.data.count} article${d.data.count>1?'s':''}`;
+        })
+        .on('mouseleave', () => tip.style.display = 'none')
+        .on('click', (e, d) => {
+          window.location.href = `index.php?category=${encodeURIComponent(d.data.category)}`;
+        });
+
+    // Label if cell is large enough
+    if (w > 60 && h > 30) {
+      svg.append('text')
+        .attr('x', x + 5).attr('y', y + 14)
+        .attr('fill', 'rgba(255,255,255,0.5)')
+        .attr('font-size', 9)
+        .attr('font-family', '-apple-system, sans-serif')
+        .attr('font-weight', '700')
+        .text(topics.length + ' topic' + (topics.length>1?'s':''));
+    }
+  });
+});
+
+// Draw grid lines between cells
+bands.forEach((b, i) => {
+  if (i === 0) return;
+  svg.append('line').attr('class','band-line')
+    .attr('x1',0).attr('y1',ry[i]).attr('x2',W).attr('y2',ry[i]);
+});
+types.forEach((t, i) => {
+  if (i === 0) return;
+  svg.append('line').attr('class','type-line')
+    .attr('x1',cx[i]).attr('y1',0).attr('x2',cx[i]).attr('y2',H);
+});
+</script>
 </body>
 </html>
