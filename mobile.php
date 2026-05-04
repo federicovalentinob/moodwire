@@ -129,7 +129,8 @@ document.body.appendChild(renderer.domElement);
 
 const scene  = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, W/H, 0.1, 500);
-camera.position.set(0, 4, 14);
+camera.position.set(0, 5, 16);
+camera.lookAt(0, -16, 0);
 
 // Lights
 scene.add(new THREE.AmbientLight(0x8899bb, 0.6));
@@ -154,6 +155,11 @@ const sphereGroup = new THREE.Group();
 sphereGroup.position.y = -16;
 scene.add(sphereGroup);
 
+// Planet base sphere
+const planetGeo = new THREE.SphereGeometry(R, 64, 64);
+const planetMat = new THREE.MeshPhongMaterial({ color: 0x0d1b2a, shininess: 10 });
+sphereGroup.add(new THREE.Mesh(planetGeo, planetMat));
+
 // Atmosphere halo
 const atmoGeo = new THREE.SphereGeometry(R * 1.025, 64, 64);
 const atmoMat = new THREE.MeshPhongMaterial({ color:0x1a3a6a, transparent:true, opacity:0.18, side:THREE.BackSide });
@@ -169,8 +175,9 @@ controls.minDistance    = 10;
 controls.maxDistance    = 30;
 controls.minPolarAngle  = 0.5;    // can't go below equator
 controls.maxPolarAngle  = 1.35;   // can't flip under planet
-controls.autoRotate     = true;
+controls.autoRotate      = true;
 controls.autoRotateSpeed = 0.35;
+controls.update();
 
 // ── Globe radius ─────────────────────────────────────────────────────────────
 const R = 18;
