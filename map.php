@@ -102,8 +102,8 @@ foreach ($types as $type) {
 <link rel="stylesheet" href="style.css">
 <style>
   #map-svg { width: 100%; border-radius: 10px; overflow: hidden; }
-  .topic-rect { cursor: pointer; stroke: white; stroke-width: 1.5; transition: opacity 0.15s; }
-  .topic-rect:hover { opacity: 0.75; stroke-width: 2.5; }
+  .topic-rect { cursor: pointer; stroke-width: 2; transition: opacity 0.15s; }
+  .topic-rect:hover { opacity: 0.75; stroke-width: 3; }
   .cell-label { pointer-events: none; font-family: -apple-system, sans-serif; }
   .axis-label { font-size: 12px; font-weight: 700; fill: #1e293b; font-family: -apple-system, sans-serif; }
   .band-line { stroke: white; stroke-width: 3; }
@@ -291,6 +291,12 @@ types.forEach((type, ti) => {
         .attr('width',  d => Math.max(0, d.x1 - d.x0))
         .attr('height', d => Math.max(0, d.y1 - d.y0))
         .attr('fill',   d => d.data.color)
+        .attr('stroke', d => {
+          const a = parseFloat(d.data.anxiety);
+          if (a >= 7) return '#dc2626';
+          if (a >= 4) return '#ca8a04';
+          return '#16a34a';
+        })
         .attr('rx', 2)
         .on('mousemove', function(event, d) {
           tip.style.display = 'block';
