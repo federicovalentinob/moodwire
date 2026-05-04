@@ -346,6 +346,18 @@ function get_latest_topics(): array {
     return $topics;
 }
 
+function dedupe_bullets(array $bullets): array {
+    $seen = [];
+    $out  = [];
+    foreach ($bullets as $b) {
+        $b = trim($b);
+        if (!$b) continue;
+        $fp = implode(' ', array_slice(explode(' ', strtolower($b)), 0, 4));
+        if (!in_array($fp, $seen)) { $seen[] = $fp; $out[] = $b; }
+    }
+    return $out;
+}
+
 function trim_title(string $title): string {
     $words = explode(' ', trim($title));
     return implode(' ', array_slice($words, 0, 5));
@@ -412,7 +424,7 @@ function regenerate_stale_bullets(): void {
         $bullets = json_decode(extract_json($raw), true);
         if (!is_array($bullets) || count($bullets) < 1) continue;
 
-        $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, $max_b));
+        $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 60), array_slice(dedupe_bullets($bullets), 0, $max_b));
 
         db()->prepare('DELETE FROM topic_bullets WHERE topic_id = ?')->execute([$topic['id']]);
         $st = db()->prepare('INSERT INTO topic_bullets (topic_id, bullet, display_order) VALUES (?, ?, ?)');

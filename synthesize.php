@@ -53,21 +53,6 @@ if (!$clusters || !is_array($clusters)) {
 
 cli_log('Got ' . count($clusters) . ' clusters. Processing...');
 
-function dedupe_bullets(array $bullets): array {
-    $seen = [];
-    $out  = [];
-    foreach ($bullets as $b) {
-        $b = trim($b);
-        if (!$b) continue;
-        // Fingerprint: first 4 words lowercased
-        $fp = implode(' ', array_slice(explode(' ', strtolower($b)), 0, 4));
-        if (!in_array($fp, $seen)) {
-            $seen[] = $fp;
-            $out[]  = $b;
-        }
-    }
-    return $out;
-}
 
 // ── Step 2: Save clusters + generate bullets ──────────────────────────────────
 $bullets_prompt_tpl = get_prompt('bullets');
