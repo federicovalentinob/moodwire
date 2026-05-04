@@ -1,24 +1,6 @@
 <?php
 require_once __DIR__ . '/functions.php';
 
-$types      = ['educative', 'informative', 'entertainment'];
-$anx_bands  = [
-    'high'   => ['label' => 'High Anxiety',   'min' => 7,  'max' => 10],
-    'medium' => ['label' => 'Medium Anxiety',  'min' => 4,  'max' => 6.99],
-    'low'    => ['label' => 'Low Anxiety',     'min' => 0,  'max' => 3.99],
-];
-
-$topics = db()->query("
-    SELECT t.title, t.content_type, t.category, t.anxiety_avg,
-           COUNT(ato.article_id) as article_count
-    FROM topics t
-    LEFT JOIN article_topics ato ON ato.topic_id = t.id
-    WHERE t.category IS NOT NULL AND t.content_type IS NOT NULL
-    GROUP BY t.id
-    HAVING article_count > 0
-")->fetchAll();
-
-// Category colours
 $cat_colors = [
     'Politics'      => '#3b82f6',
     'Geopolitics'   => '#8b5cf6',
@@ -35,63 +17,47 @@ $cat_colors = [
     'Food'          => '#ca8a04',
 ];
 
-// Group topics into 9 cells (type × anxiety)
-$cells = [];
-foreach ($types as $type) {
-    foreach (array_keys($anx_bands) as $band) {
-        $cells[$type][$band] = [];
+$topics = db()->query("
+    SELECT t.id, t.title, t.content_type, t.category, t.anxiety_avg,
+           COUNT(ato.article_id) as article_count
+    FROM topics t
+    LEFT JOIN article_topics ato ON ato.topic_id = t.id
+    WHERE t.category IS NOT NULL
+    GROUP BY t.id
+    HAVING article_count > 0
+")->fetchAll();
+
+// Build nodes
+$nodes = [];
+foreach ($topics as $i => $t) {
+    $nodes[] = [
+        'id'       => $i,
+        'title'    => $t['title'],
+        'category' => $t['category'],
+        'type'     => $t['content_type'],
+        'anxiety'  => (float)$t['anxiety_avg'],
+        'count'    => (int)$t['article_count'],
+        'color'    => $cat_colors[$t['category']] ?? '#94a3b8',
+    ];
+}
+
+// Build edges: each node connects to 3 other nodes of same category
+$links = [];
+$by_cat = [];
+foreach ($nodes as $n) {
+    $by_cat[$n['category']][] = $n['id'];
+}
+foreach ($nodes as $n) {
+    $peers = array_values(array_filter($by_cat[$n['category']], fn($id) => $id !== $n['id']));
+    shuffle($peers);
+    $targets = array_slice($peers, 0, 3);
+    foreach ($targets as $t) {
+        // Avoid duplicate edges
+        $key = min($n['id'], $t) . '-' . max($n['id'], $t);
+        $links[$key] = ['source' => $n['id'], 'target' => $t];
     }
 }
-foreach ($topics as $t) {
-    $anx = (float)$t['anxiety_avg'];
-    $band = $anx >= 7 ? 'high' : ($anx >= 4 ? 'medium' : 'low');
-    $cells[$t['content_type']][$band][] = $t;
-}
-
-// Compute cell weights (for grid sizing)
-$type_counts = array_map(fn($b) => array_sum(array_map(fn($c) => count($c), $b)), $cells);
-$band_counts = [];
-foreach (array_keys($anx_bands) as $band) {
-    $band_counts[$band] = array_sum(array_map(fn($t) => count($cells[$t][$band]), $types));
-}
-$total = max(1, array_sum($type_counts));
-
-// Build JSON for D3
-$d3_data = ['name' => 'root', 'children' => []];
-foreach ($types as $type) {
-    $type_node = ['name' => $type, 'children' => []];
-    foreach (array_keys($anx_bands) as $band) {
-        $band_node = ['name' => $band, 'children' => []];
-
-        // Group topics by category within each cell
-        $by_cat = [];
-        foreach ($cells[$type][$band] as $t) {
-            $by_cat[$t['category']][] = $t;
-        }
-        foreach ($by_cat as $cat => $cat_topics) {
-            $cat_node = [
-                'name'     => $cat,
-                'category' => $cat,
-                'color'    => $cat_colors[$cat] ?? '#94a3b8',
-                'children' => [],
-            ];
-            foreach ($cat_topics as $t) {
-                $cat_node['children'][] = [
-                    'name'     => $t['title'],
-                    'category' => $t['category'],
-                    'anxiety'  => $t['anxiety_avg'],
-                    'count'    => (int)$t['article_count'],
-                    'type'     => $t['content_type'],
-                    'band'     => $band,
-                    'color'    => $cat_colors[$t['category']] ?? '#94a3b8',
-                ];
-            }
-            $band_node['children'][] = $cat_node;
-        }
-        $type_node['children'][] = $band_node;
-    }
-    $d3_data['children'][] = $type_node;
-}
+$links = array_values($links);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -101,48 +67,20 @@ foreach ($types as $type) {
 <title>Moodwire — Map</title>
 <link rel="stylesheet" href="style.css">
 <style>
-  #map-svg { width: 100%; border-radius: 10px; overflow: hidden; }
-  .topic-rect { cursor: pointer; stroke-width: 2; transition: opacity 0.15s; }
-  .topic-rect:hover { opacity: 0.75; stroke-width: 3; }
-  .cell-label { pointer-events: none; font-family: -apple-system, sans-serif; }
-  .axis-label { font-size: 12px; font-weight: 700; fill: #1e293b; font-family: -apple-system, sans-serif; }
-  .band-line { stroke: white; stroke-width: 3; }
-  .type-line { stroke: white; stroke-width: 3; }
-
-  /* Tooltip */
+  #map-svg { width: 100%; display: block; }
+  .node { cursor: pointer; }
+  .node circle { transition: opacity 0.15s; }
+  .node circle:hover { opacity: 0.75; }
+  .link { stroke-opacity: 0.25; }
   #tooltip {
-    position: fixed;
-    background: #1e293b;
-    color: #f1f5f9;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 12px;
-    pointer-events: none;
-    display: none;
-    z-index: 999;
-    max-width: 260px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    line-height: 1.5;
+    position: fixed; background: #1e293b; color: #f1f5f9;
+    padding: 8px 12px; border-radius: 8px; font-size: 12px;
+    pointer-events: none; display: none; z-index: 999;
+    max-width: 240px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); line-height: 1.5;
   }
-
-  /* Legend */
-  .legend-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .legend-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
   .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; }
-  .legend-dot  { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
-
-  /* Axis labels outside map */
-  .map-outer { position: relative; }
-  .axis-x-labels { display: flex; margin-left: 48px; margin-bottom: 4px; }
-  .axis-x-label  { flex: 1; text-align: center; font-size: 12px; font-weight: 700; color: #1e3a5f; text-transform: uppercase; letter-spacing: 0.5px; }
-  .axis-y-wrap   { display: flex; align-items: stretch; }
-  .axis-y-labels { display: flex; flex-direction: column; width: 48px; flex-shrink: 0; }
-  .axis-y-label  {
-    display: flex; align-items: center; justify-content: center;
-    writing-mode: vertical-lr; transform: rotate(180deg);
-    font-size: 11px; font-weight: 700; color: #1e3a5f;
-    text-transform: uppercase; letter-spacing: 0.5px;
-    flex-shrink: 0;
-  }
+  .legend-dot  { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -157,7 +95,6 @@ foreach ($types as $type) {
 
   <h1>Topic Map</h1>
 
-  <!-- Category legend -->
   <div class="legend-grid">
     <?php foreach ($cat_colors as $cat => $col): ?>
       <div class="legend-item">
@@ -165,274 +102,116 @@ foreach ($types as $type) {
         <?= $cat ?>
       </div>
     <?php endforeach; ?>
-  </div>
-
-  <!-- Anxiety border legend -->
-  <div style="display:flex;align-items:center;gap:6px;margin-bottom:20px;font-size:11px;color:#64748b">
-    <span style="font-weight:700;color:#1e293b">Border = Anxiety:</span>
-    <span>0</span>
-    <?php
-    $palette = ['#16a34a','#4ade80','#a3e635','#facc15','#fb923c','#f97316','#ef4444','#dc2626','#b91c1c','#7f1d1d'];
-    foreach ($palette as $i => $col):
-    ?>
-      <div style="width:28px;height:12px;background:<?= $col ?>;border-radius:3px" title="<?= $i ?>–<?= $i+1 ?>"></div>
-    <?php endforeach; ?>
-    <span>10</span>
-  </div>
-
-  <div class="map-outer">
-    <!-- X axis labels (Type) -->
-    <div class="axis-x-labels">
-      <div class="axis-x-label">Educative</div>
-      <div class="axis-x-label">Informative</div>
-      <div class="axis-x-label">Entertainment</div>
-    </div>
-
-    <div class="axis-y-wrap">
-      <!-- Y axis labels (Anxiety) — heights set by JS to match bands -->
-      <div class="axis-y-labels" id="y-labels">
-        <div class="axis-y-label" id="yl-high"   style="color:#dc2626">High ↑</div>
-        <div class="axis-y-label" id="yl-medium" style="color:#ca8a04">Medium</div>
-        <div class="axis-y-label" id="yl-low"    style="color:#16a34a">Low ↓</div>
-      </div>
-
-      <!-- Map SVG -->
-      <svg id="map-svg">
-        <defs>
-          <filter id="organic" x="-5%" y="-5%" width="110%" height="110%">
-            <feTurbulence type="turbulence" baseFrequency="0.012 0.015" numOctaves="5" seed="3" result="noise"/>
-            <feDisplacementMap in="SourceGraphic" in2="noise" scale="40" xChannelSelector="R" yChannelSelector="G"/>
-          </filter>
-          <clipPath id="organic-clip">
-            <path id="organic-clip-path"/>
-          </clipPath>
-        </defs>
-        <g id="map-content" filter="url(#organic)" clip-path="url(#organic-clip)"></g>
-      </svg>
+    <div class="legend-item" style="margin-left:12px;color:#64748b">
+      · Dot size = article count &nbsp;· Border color = anxiety (green→red) &nbsp;· Lines = same category
     </div>
   </div>
 
+  <svg id="map-svg"></svg>
   <div id="tooltip"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <script>
-const data    = <?= json_encode($d3_data) ?>;
-const types   = ['educative','informative','entertainment'];
-const bands   = ['high','medium','low'];
-const bandLabels = {high:'High',medium:'Medium',low:'Low'};
-
-// 10-level green→yellow→red gradient for anxiety (0–10)
-const anxietyPalette = [
-  '#16a34a', // 0–1  deep green
-  '#4ade80', // 1–2  light green
-  '#a3e635', // 2–3  yellow-green
-  '#facc15', // 3–4  yellow
-  '#fb923c', // 4–5  light orange (was amber border)
-  '#f97316', // 5–6  orange
-  '#ef4444', // 6–7  light red
-  '#dc2626', // 7–8  red
-  '#b91c1c', // 8–9  dark red
-  '#7f1d1d', // 9–10 very dark red
-];
-function anxietyColor(a) {
-  const idx = Math.min(9, Math.max(0, Math.floor(a)));
-  return anxietyPalette[idx];
-}
+const nodes = <?= json_encode(array_values($nodes)) ?>;
+const links = <?= json_encode($links) ?>;
 
 const W = document.getElementById('map-svg').parentElement.clientWidth;
-const H = Math.round(W * 0.65);
+const H = Math.round(W * 0.72);
 document.getElementById('map-svg').setAttribute('viewBox', `0 0 ${W} ${H}`);
 document.getElementById('map-svg').setAttribute('height', H);
 
-const svg = d3.select('#map-content');
+const svg = d3.select('#map-svg');
 const tip = document.getElementById('tooltip');
 
-// Compute column widths & row heights proportional to total article counts
-function articlesInCell(type, band) {
-  const typeNode = data.children.find(d => d.name === type);
-  const bandNode = typeNode?.children.find(d => d.name === band);
-  return (bandNode?.children || []).reduce((s, cat) =>
-    s + (cat.children || []).reduce((s2, t) => s2 + (t.count||1), 0), 0);
-}
+// Radius scale: sqrt so area ∝ count
+const rScale = d3.scaleSqrt()
+  .domain([1, d3.max(nodes, d => d.count)])
+  .range([5, 28]);
 
-const typeTotals = types.map(t => bands.reduce((s,b) => s + articlesInCell(t,b), 0));
-const bandTotals = bands.map(b => types.reduce((s,t) => s + articlesInCell(t,b), 0));
-const total = typeTotals.reduce((a,b) => a+b, 0) || 1;
+// Anxiety border color
+const anxPalette = ['#16a34a','#4ade80','#a3e635','#facc15','#fb923c','#f97316','#ef4444','#dc2626','#b91c1c','#7f1d1d'];
+const anxColor = a => anxPalette[Math.min(9, Math.max(0, Math.floor(a)))];
 
-// Minimum 10% of axis to avoid invisible cells
-const colWidths  = typeTotals.map(n => Math.max(n/total * W, W * 0.10));
-const rowHeights = bandTotals.map(n => Math.max(n/total * H, H * 0.10));
-
-// Normalize
-const wSum = colWidths.reduce((a,b)=>a+b,0);
-const hSum = rowHeights.reduce((a,b)=>a+b,0);
-const cw = colWidths.map(w => w/wSum * W);
-const rh = rowHeights.map(h => h/hSum * H);
-
-// Cumulative offsets
-const cx = [0, cw[0], cw[0]+cw[1]];
-const ry = [0, rh[0], rh[0]+rh[1]];
-
-// Build organic clip-path — perimeter points with noise-based offsets
-function buildOrganicClip(W, H, steps, jitter) {
-  const pts = [];
-  const segs = [
-    // top edge: left→right
-    ...Array.from({length: steps}, (_,i) => [W * i / steps, 0]),
-    // right edge: top→bottom
-    ...Array.from({length: steps}, (_,i) => [W, H * i / steps]),
-    // bottom edge: right→left
-    ...Array.from({length: steps}, (_,i) => [W * (1 - i / steps), H]),
-    // left edge: bottom→top
-    ...Array.from({length: steps}, (_,i) => [0, H * (1 - i / steps)]),
-  ];
-  // Simple seeded pseudo-random for stable shape
-  let seed = 42;
-  function rand() { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return (seed >>> 0) / 0xffffffff; }
-
-  const path = segs.map(([x, y], i) => {
-    const inward = (rand() - 0.3) * jitter;
-    // Push inward toward center
-    const nx = x === 0 ? 1 : x === W ? -1 : 0;
-    const ny = y === 0 ? 1 : y === H ? -1 : 0;
-    return [x + nx * inward, y + ny * inward];
-  });
-  return 'M' + path.map(p => p.map(v => v.toFixed(1)).join(',')).join('L') + 'Z';
-}
-document.getElementById('organic-clip-path').setAttribute('d', buildOrganicClip(W, H, 12, 55));
-
-// Align Y-axis labels to actual band heights
-['high','medium','low'].forEach((b,i) => {
-  const el = document.getElementById('yl-' + b);
-  if (el) el.style.height = rh[i] + 'px';
+// Category cluster positions (evenly spread)
+const categories = [...new Set(nodes.map(d => d.category))];
+const clusterPos = {};
+categories.forEach((cat, i) => {
+  const angle = (i / categories.length) * 2 * Math.PI - Math.PI / 2;
+  const r = Math.min(W, H) * 0.32;
+  clusterPos[cat] = { x: W/2 + r * Math.cos(angle), y: H/2 + r * Math.sin(angle) };
 });
 
-// Draw each cell as a mini treemap
-types.forEach((type, ti) => {
-  bands.forEach((band, bi) => {
-    const typeNode = data.children.find(d => d.name === type);
-    const bandNode = typeNode?.children.find(d => d.name === band);
-    const topics   = bandNode?.children || [];
-    if (!topics.length) return;
-
-    const x = cx[ti], y = ry[bi], w = cw[ti], h = rh[bi];
-
-    // Build treemap for this cell — with category as intermediate level
-    const root = d3.hierarchy({ children: topics })
-      .sum(d => d.count || 1)
-      .sort((a,b) => {
-        // Sort categories by average anxiety desc, then leaves by anxiety desc
-        const aAnx = a.data.anxiety ?? (a.children ? a.children.reduce((s,c)=>s+(c.data.anxiety||0),0)/a.children.length : 0);
-        const bAnx = b.data.anxiety ?? (b.children ? b.children.reduce((s,c)=>s+(c.data.anxiety||0),0)/b.children.length : 0);
-        return bAnx - aAnx;
-      });
-
-    d3.treemap()
-      .size([w, h])
-      .padding(1)
-      .paddingInner(1)
-      .paddingOuter(0)
-      .paddingTop(d => d.depth === 1 ? 2 : 1) // extra padding between categories
-      .tile(d3.treemapSliceDice)(root);
-
-    // For each category bloc: create organic clip-path then draw its leaves inside
-    let catSeed = 7;
-    root.descendants().filter(d => d.depth === 1).forEach((cat, ci) => {
-      const bx = x + cat.x0, by = y + cat.y0;
-      const bw = Math.max(0, cat.x1 - cat.x0);
-      const bh = Math.max(0, cat.y1 - cat.y0);
-      if (bw < 4 || bh < 4) return;
-
-      // Unique clip id
-      const clipId = `cat-clip-${ti}-${bi}-${ci}`;
-
-      // Build organic polygon for this category's bounds
-      const steps = 6;
-      catSeed += 17;
-      let s = catSeed;
-      function r() { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; }
-      const jitter = Math.min(bw, bh) * 0.18;
-      const segs = [
-        ...Array.from({length:steps}, (_,i) => [bx + bw*i/steps, by]),
-        ...Array.from({length:steps}, (_,i) => [bx + bw,          by + bh*i/steps]),
-        ...Array.from({length:steps}, (_,i) => [bx + bw*(1-i/steps), by + bh]),
-        ...Array.from({length:steps}, (_,i) => [bx,                   by + bh*(1-i/steps)]),
-      ];
-      const path = segs.map(([px,py]) => {
-        const nx = px===bx ? 1 : px===bx+bw ? -1 : 0;
-        const ny = py===by ? 1 : py===by+bh ? -1 : 0;
-        const off = (r() - 0.3) * jitter;
-        return [px + nx*off, py + ny*off];
-      });
-      const d_attr = 'M' + path.map(p=>p.map(v=>v.toFixed(1)).join(',')).join('L') + 'Z';
-
-      // Add clipPath to SVG defs
-      const defs = document.querySelector('#map-svg defs');
-      const cp = document.createElementNS('http://www.w3.org/2000/svg','clipPath');
-      cp.setAttribute('id', clipId);
-      const pathEl = document.createElementNS('http://www.w3.org/2000/svg','path');
-      pathEl.setAttribute('d', d_attr);
-      cp.appendChild(pathEl);
-      defs.appendChild(cp);
-
-      // Category background
-      svg.append('path').attr('d', d_attr)
-        .attr('fill', cat.data.color).attr('opacity', 0.15)
-        .attr('stroke', cat.data.color).attr('stroke-width', 2)
-        .attr('pointer-events', 'none');
-
-      // Draw leaves inside category clip
-      const g = svg.append('g').attr('clip-path', `url(#${clipId})`);
-      g.selectAll(null)
-        .data(cat.leaves())
-        .enter().append('rect')
-          .attr('class', 'topic-rect')
-          .attr('x',      d => x + d.x0)
-          .attr('y',      d => y + d.y0)
-          .attr('width',  d => Math.max(0, d.x1 - d.x0))
-          .attr('height', d => Math.max(0, d.y1 - d.y0))
-          .attr('fill',   d => d.data.color)
-          .attr('stroke', d => anxietyColor(parseFloat(d.data.anxiety)))
-          .attr('rx', 1)
-          .on('mousemove', function(event, d) {
-            tip.style.display = 'block';
-            tip.style.left    = (event.clientX + 14) + 'px';
-            tip.style.top     = (event.clientY - 10) + 'px';
-            tip.innerHTML = `<strong>${d.data.name}</strong><br>
-              ${d.data.category} · ${d.data.type}<br>
-              Anxiety: ${parseFloat(d.data.anxiety).toFixed(1)} · ${d.data.count} article${d.data.count>1?'s':''}`;
-          })
-          .on('mouseleave', () => tip.style.display = 'none')
-          .on('click', (e, d) => {
-            window.location.href = `index.php?category=${encodeURIComponent(d.data.category)}`;
-          });
+// Force simulation
+const sim = d3.forceSimulation(nodes)
+  .force('link', d3.forceLink(links).id(d => d.id).distance(d => {
+    const r1 = rScale(nodes[d.source.index ?? d.source].count);
+    const r2 = rScale(nodes[d.target.index ?? d.target].count);
+    return r1 + r2 + 20;
+  }).strength(0.4))
+  .force('charge', d3.forceManyBody().strength(-120))
+  .force('cluster', alpha => {
+    nodes.forEach(d => {
+      const cp = clusterPos[d.category];
+      if (!cp) return;
+      d.vx += (cp.x - d.x) * alpha * 0.08;
+      d.vy += (cp.y - d.y) * alpha * 0.08;
     });
-
-    // Label if cell is large enough
-    if (w > 60 && h > 30) {
-      svg.append('text')
-        .attr('x', x + 5).attr('y', y + 14)
-        .attr('fill', 'rgba(255,255,255,0.5)')
-        .attr('font-size', 9)
-        .attr('font-family', '-apple-system, sans-serif')
-        .attr('font-weight', '700')
-        .text(topics.length + ' topic' + (topics.length>1?'s':''));
-    }
+  })
+  .force('collision', d3.forceCollide().radius(d => rScale(d.count) + 3))
+  .force('center', d3.forceCenter(W/2, H/2).strength(0.04))
+  .force('bounds', () => {
+    nodes.forEach(d => {
+      const r = rScale(d.count);
+      d.x = Math.max(r, Math.min(W - r, d.x));
+      d.y = Math.max(r, Math.min(H - r, d.y));
+    });
   });
-});
 
-// Draw grid lines on root SVG (unfiltered, stay crisp)
-const rootSvg = d3.select('#map-svg');
-bands.forEach((b, i) => {
-  if (i === 0) return;
-  rootSvg.append('line').attr('class','band-line')
-    .attr('x1',0).attr('y1',ry[i]).attr('x2',W).attr('y2',ry[i]);
-});
-types.forEach((t, i) => {
-  if (i === 0) return;
-  rootSvg.append('line').attr('class','type-line')
-    .attr('x1',cx[i]).attr('y1',0).attr('x2',cx[i]).attr('y2',H);
+// Draw links
+const link = svg.append('g')
+  .selectAll('line')
+  .data(links)
+  .enter().append('line')
+    .attr('class', 'link')
+    .attr('stroke', d => nodes[typeof d.source === 'object' ? d.source.id : d.source]?.color ?? '#94a3b8')
+    .attr('stroke-width', 1.2);
+
+// Draw nodes
+const node = svg.append('g')
+  .selectAll('g')
+  .data(nodes)
+  .enter().append('g')
+    .attr('class', 'node')
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag',  (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end',   (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+node.append('circle')
+  .attr('r',           d => rScale(d.count))
+  .attr('fill',        d => d.color)
+  .attr('stroke',      d => anxColor(d.anxiety))
+  .attr('stroke-width',d => Math.max(2, rScale(d.count) * 0.18))
+  .on('mousemove', function(event, d) {
+    tip.style.display = 'block';
+    tip.style.left    = (event.clientX + 14) + 'px';
+    tip.style.top     = (event.clientY - 10) + 'px';
+    tip.innerHTML = `<strong>${d.title}</strong><br>
+      ${d.category} · ${d.type}<br>
+      Anxiety: ${d.anxiety.toFixed(1)} · ${d.count} article${d.count>1?'s':''}`;
+  })
+  .on('mouseleave', () => tip.style.display = 'none')
+  .on('click', (e, d) => window.location.href = `index.php?category=${encodeURIComponent(d.category)}`);
+
+// Tick
+sim.on('tick', () => {
+  link
+    .attr('x1', d => d.source.x)
+    .attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x)
+    .attr('y2', d => d.target.y);
+  node.attr('transform', d => `translate(${d.x},${d.y})`);
 });
 </script>
 </body>
