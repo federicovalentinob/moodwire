@@ -137,10 +137,11 @@ foreach ($types as $type) {
   .axis-y-wrap   { display: flex; align-items: stretch; }
   .axis-y-labels { display: flex; flex-direction: column; width: 48px; flex-shrink: 0; }
   .axis-y-label  {
-    flex: 1; display: flex; align-items: center; justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     writing-mode: vertical-lr; transform: rotate(180deg);
     font-size: 11px; font-weight: 700; color: #1e3a5f;
     text-transform: uppercase; letter-spacing: 0.5px;
+    flex-shrink: 0;
   }
 </style>
 </head>
@@ -175,11 +176,11 @@ foreach ($types as $type) {
     </div>
 
     <div class="axis-y-wrap">
-      <!-- Y axis labels (Anxiety) -->
-      <div class="axis-y-labels">
-        <div class="axis-y-label" style="color:#dc2626">High</div>
-        <div class="axis-y-label" style="color:#ca8a04">Medium</div>
-        <div class="axis-y-label" style="color:#16a34a">Low</div>
+      <!-- Y axis labels (Anxiety) — heights set by JS to match bands -->
+      <div class="axis-y-labels" id="y-labels">
+        <div class="axis-y-label" id="yl-high"   style="color:#dc2626">High ↑</div>
+        <div class="axis-y-label" id="yl-medium" style="color:#ca8a04">Medium</div>
+        <div class="axis-y-label" id="yl-low"    style="color:#16a34a">Low ↓</div>
       </div>
 
       <!-- Map SVG -->
@@ -231,6 +232,12 @@ const rh = rowHeights.map(h => h/hSum * H);
 const cx = [0, cw[0], cw[0]+cw[1]];
 const ry = [0, rh[0], rh[0]+rh[1]];
 
+// Align Y-axis labels to actual band heights
+['high','medium','low'].forEach((b,i) => {
+  const el = document.getElementById('yl-' + b);
+  if (el) el.style.height = rh[i] + 'px';
+});
+
 // Draw each cell as a mini treemap
 types.forEach((type, ti) => {
   bands.forEach((band, bi) => {
@@ -244,7 +251,12 @@ types.forEach((type, ti) => {
     // Build treemap for this cell — with category as intermediate level
     const root = d3.hierarchy({ children: topics })
       .sum(d => d.count || 1)
-      .sort((a,b) => b.value - a.value);
+      .sort((a,b) => {
+        // Sort categories by average anxiety desc, then leaves by anxiety desc
+        const aAnx = a.data.anxiety ?? (a.children ? a.children.reduce((s,c)=>s+(c.data.anxiety||0),0)/a.children.length : 0);
+        const bAnx = b.data.anxiety ?? (b.children ? b.children.reduce((s,c)=>s+(c.data.anxiety||0),0)/b.children.length : 0);
+        return bAnx - aAnx;
+      });
 
     d3.treemap()
       .size([w, h])
