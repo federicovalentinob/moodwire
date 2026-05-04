@@ -424,7 +424,7 @@ function regenerate_stale_bullets(): void {
         $bullets = json_decode(extract_json($raw), true);
         if (!is_array($bullets) || count($bullets) < 1) continue;
 
-        $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 60), array_slice(dedupe_bullets($bullets), 0, $max_b));
+        $bullets = array_map(fn($b) => trim($b), array_slice(dedupe_bullets($bullets), 0, $max_b));
 
         db()->prepare('DELETE FROM topic_bullets WHERE topic_id = ?')->execute([$topic['id']]);
         $st = db()->prepare('INSERT INTO topic_bullets (topic_id, bullet, display_order) VALUES (?, ?, ?)');
