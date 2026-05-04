@@ -292,8 +292,10 @@ function get_latest_topics(): array {
     return $topics;
 }
 
-function save_topic(string $title, array $bullets, float $anxiety_avg, array $article_ids): int {
-    db()->prepare('INSERT INTO topics (title, anxiety_avg) VALUES (?, ?)')->execute([$title, $anxiety_avg]);
+function save_topic(string $title, array $bullets, float $anxiety_avg, array $article_ids, string $content_type = 'informative'): int {
+    $valid_types = ['informative', 'educative', 'entertainment'];
+    if (!in_array($content_type, $valid_types)) $content_type = 'informative';
+    db()->prepare('INSERT INTO topics (title, anxiety_avg, content_type) VALUES (?, ?, ?)')->execute([$title, $anxiety_avg, $content_type]);
     $topic_id = (int) db()->lastInsertId();
 
     $st = db()->prepare('INSERT INTO topic_bullets (topic_id, bullet, display_order) VALUES (?, ?, ?)');

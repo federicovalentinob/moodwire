@@ -5,6 +5,7 @@ require_once __DIR__ . '/functions.php';
 $topics      = get_latest_topics();
 $filter_tag  = trim($_GET['tag']     ?? '');
 $filter_anx  = trim($_GET['anxiety'] ?? '');
+$filter_type = trim($_GET['type']    ?? '');
 
 // Collect all unique tags across articles
 $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->fetchAll(PDO::FETCH_COLUMN);
@@ -33,6 +34,11 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
     <a href="?anxiety=medium" class="filter-btn anxiety-medium <?= $filter_anx==='medium' ? 'active':'' ?>">Medium (4–6)</a>
     <a href="?anxiety=high"   class="filter-btn anxiety-high   <?= $filter_anx==='high'   ? 'active':'' ?>">High (7–10)</a>
 
+    <span class="filter-sep">Type:</span>
+    <a href="?type=informative"   class="filter-btn <?= $filter_type==='informative'   ? 'active':'' ?>">Informative</a>
+    <a href="?type=educative"     class="filter-btn <?= $filter_type==='educative'     ? 'active':'' ?>">Educative</a>
+    <a href="?type=entertainment" class="filter-btn <?= $filter_type==='entertainment' ? 'active':'' ?>">Entertainment</a>
+
   </div>
 
   <?php if (empty($topics)): ?>
@@ -48,12 +54,18 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
 
     $filtered_articles = $topic['articles'];
 
-    // Filter topics by anxiety level
+    // Filter by anxiety
     if ($filter_anx) {
         if ($filter_anx === 'low'    && $anx > 3)           continue;
         if ($filter_anx === 'medium' && ($anx < 4 || $anx > 6)) continue;
         if ($filter_anx === 'high'   && $anx < 7)           continue;
     }
+
+    // Filter by content type
+    if ($filter_type && ($topic['content_type'] ?? '') !== $filter_type) continue;
+
+    $content_type = $topic['content_type'] ?? 'informative';
+    $type_labels  = ['informative' => 'Informative', 'educative' => 'Educative', 'entertainment' => 'Entertainment'];
 
     // Filter by tag
     if ($filter_tag) {
@@ -72,9 +84,10 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
           <span class="topic-age"><?= time_ago($topic['latest_article_at']) ?></span>
         <?php endif; ?>
       </h2>
-      <span class="anxiety-badge" style="background:<?= $color ?>">
-        <?= $label ?> <?= number_format($anx, 1) ?>
-      </span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span class="type-badge type-<?= $content_type ?>"><?= $type_labels[$content_type] ?></span>
+        <span class="anxiety-badge" style="background:<?= $color ?>"><?= $label ?> <?= number_format($anx, 1) ?></span>
+      </div>
     </div>
 
     <ul class="bullets">

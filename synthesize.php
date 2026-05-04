@@ -62,9 +62,10 @@ $topics_needing_bullets = []; // topic_id => [article titles]
 $solo_articles = []; // articles left alone — to be merged later
 
 foreach ($clusters as $cluster) {
-    $title       = $cluster['title']    ?? 'Untitled';
-    $topic_id    = isset($cluster['topic_id']) && $cluster['topic_id'] ? (int)$cluster['topic_id'] : null;
-    $article_ids = $cluster['ids']      ?? [];
+    $title        = $cluster['title']    ?? 'Untitled';
+    $topic_id     = isset($cluster['topic_id']) && $cluster['topic_id'] ? (int)$cluster['topic_id'] : null;
+    $article_ids  = $cluster['ids']      ?? [];
+    $content_type = $cluster['type']     ?? 'informative';
 
     if (empty($article_ids)) continue;
 
@@ -112,7 +113,7 @@ foreach ($clusters as $cluster) {
         }
         $max_b = min(5, max(1, count($valid_ids))); $bullets = array_map(fn($b) => mb_substr(trim($b), 0, 100), array_slice($bullets, 0, $max_b));
 
-        $new_id = save_topic($title, $bullets, $anxiety_avg, $valid_ids);
+        $new_id = save_topic($title, $bullets, $anxiety_avg, $valid_ids, $content_type);
         $saved_new++;
         cli_log("  + New topic [{$new_id}] {$title} (anxiety: " . round($anxiety_avg, 1) . ")");
         foreach ($bullets as $b) cli_log("    • {$b}");

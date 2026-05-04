@@ -76,6 +76,16 @@ h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
   border-radius: 20px;
   white-space: nowrap;
 }
+.type-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.type-informative  { background: #e0f2fe; color: #0369a1; }
+.type-educative    { background: #dcfce7; color: #15803d; }
+.type-entertainment { background: #fef3c7; color: #b45309; }
 
 .bullets {
   padding: 10px 18px 12px 34px;
