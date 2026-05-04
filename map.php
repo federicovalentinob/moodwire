@@ -137,11 +137,21 @@ const anxColor = a => anxPalette[Math.min(9, Math.max(0, Math.floor(a)))];
 const pad = 40;
 const yTarget = d => pad + (1 - d.anxiety / 10) * (H - 2 * pad);
 
-// X target: spread categories evenly across width
+// X axis: 3 type zones
+const typeZone = { educative: [0, W/3], informative: [W/3, 2*W/3], entertainment: [2*W/3, W] };
+
+// Spread categories within their type zone
 const categories = [...new Set(nodes.map(d => d.category))];
+const catsByType = { educative: [], informative: [], entertainment: [] };
+nodes.forEach(d => { if (!catsByType[d.type].includes(d.category)) catsByType[d.type].push(d.category); });
+
 const catX = {};
-categories.forEach((cat, i) => {
-  catX[cat] = pad + (i + 0.5) / categories.length * (W - 2 * pad);
+['educative','informative','entertainment'].forEach(type => {
+  const [zLeft, zRight] = typeZone[type];
+  const cats = catsByType[type];
+  cats.forEach((cat, i) => {
+    catX[cat] = zLeft + pad/2 + (i + 0.5) / cats.length * (zRight - zLeft - pad);
+  });
 });
 const xTarget = d => catX[d.category] ?? W / 2;
 
@@ -163,6 +173,19 @@ const sim = d3.forceSimulation(nodes)
       d.y = Math.max(r, Math.min(H - r, d.y));
     });
   });
+
+// Type zone dividers and labels
+[{x: W/3, label:'◄ Educative   Informative ►'}, {x: 2*W/3, label:'◄ Informative   Entertainment ►'}].forEach(z => {
+  svg.append('line').attr('x1', z.x).attr('y1', 0).attr('x2', z.x).attr('y2', H)
+    .attr('stroke', '#e2e8f0').attr('stroke-width', 1.5).attr('stroke-dasharray', '6,4');
+});
+[{x: W/6, label:'Educative'}, {x: W/2, label:'Informative'}, {x: W*5/6, label:'Entertainment'}].forEach(z => {
+  svg.append('text').attr('x', z.x).attr('y', 16)
+    .attr('text-anchor', 'middle').attr('font-size', 11).attr('font-weight', '700')
+    .attr('fill', '#cbd5e1').attr('font-family', '-apple-system, sans-serif')
+    .attr('text-transform', 'uppercase').attr('letter-spacing', 1)
+    .text(z.label.toUpperCase());
+});
 
 // Y-axis anxiety labels
 [10,8,6,4,2,0].forEach(val => {
