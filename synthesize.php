@@ -76,7 +76,7 @@ foreach ($clusters as $cluster) {
     if (empty($valid_ids)) continue;
 
     // Enforce min 2 articles — queue solos for later merging
-    if (count($valid_ids) < 2) {
+    if (count($valid_ids) < 3) {
         $solo_articles[] = (int)$valid_ids[0];
         cli_log("  ⚠ Solo article [{$valid_ids[0]}] queued for merging");
         continue;
@@ -105,7 +105,7 @@ foreach ($clusters as $cluster) {
         // Create new topic — get bullet points first
         $art_titles = db()->query("SELECT title FROM articles WHERE id IN ({$ids_str})")->fetchAll(PDO::FETCH_COLUMN);
         $art_list   = implode("\n", array_map(fn($t) => "- {$t}", $art_titles));
-        $max_b = min(5, max(1, count($valid_ids))); $bp_prompt = str_replace(['{{topic}}', '{{articles}}', '{{num_bullets}}'], [$title, $art_list, (string)$max_b], $bullets_prompt_tpl);
+        $max_b = min(5, max(2, count($valid_ids))); $bp_prompt = str_replace(['{{topic}}', '{{articles}}', '{{num_bullets}}'], [$title, $art_list, (string)$max_b], $bullets_prompt_tpl);
 
         $raw_b   = call_perplexity($bp_prompt, $system);
         $bullets = json_decode(extract_json($raw_b), true);
@@ -114,7 +114,7 @@ foreach ($clusters as $cluster) {
             $bullets = array_filter(array_map('trim', preg_split('/\n|•|-/', $raw_b)));
             $bullets = array_values(array_slice($bullets, 0, 3));
         }
-        $bullets = dedupe_bullets($bullets); $max_b = min(5, max(1, count($valid_ids))); $bullets = array_map(fn($b) => trim($b), array_slice($bullets, 0, $max_b));
+        $bullets = dedupe_bullets($bullets); $max_b = min(5, max(2, count($valid_ids))); $bullets = array_map(fn($b) => trim($b), array_slice($bullets, 0, $max_b));
 
         $new_id = save_topic($title, $bullets, $anxiety_avg, $valid_ids, $content_type, $category);
         update_topic_geo($new_id);
@@ -150,7 +150,7 @@ if (!empty($topics_needing_bullets)) {
         if (empty($art_titles)) continue;
 
         $art_list  = implode("\n", array_map(fn($t) => "- {$t}", $art_titles));
-        $topic_art_count = db()->query("SELECT COUNT(*) FROM article_topics WHERE topic_id = {$topic_id}")->fetchColumn(); $max_b = min(5, max(1, (int)$topic_art_count)); $bp_prompt = str_replace(['{{topic}}', '{{articles}}', '{{num_bullets}}'], [$title, $art_list, (string)$max_b], $bullets_prompt_tpl);
+        $topic_art_count = db()->query("SELECT COUNT(*) FROM article_topics WHERE topic_id = {$topic_id}")->fetchColumn(); $max_b = min(5, max(2, (int)$topic_art_count)); $bp_prompt = str_replace(['{{topic}}', '{{articles}}', '{{num_bullets}}'], [$title, $art_list, (string)$max_b], $bullets_prompt_tpl);
         $raw_b     = call_perplexity($bp_prompt, $system);
         $bullets   = json_decode(extract_json($raw_b), true);
 
@@ -158,7 +158,7 @@ if (!empty($topics_needing_bullets)) {
             $bullets = array_filter(array_map('trim', preg_split('/\n|•|-/', $raw_b)));
             $bullets = array_values(array_slice($bullets, 0, 3));
         }
-        $topic_art_count = db()->query("SELECT COUNT(*) FROM article_topics WHERE topic_id = {$topic_id}")->fetchColumn(); $bullets = dedupe_bullets($bullets); $max_b = min(5, max(1, (int)$topic_art_count)); $bullets = array_map(fn($b) => trim($b), array_slice($bullets, 0, $max_b));
+        $topic_art_count = db()->query("SELECT COUNT(*) FROM article_topics WHERE topic_id = {$topic_id}")->fetchColumn(); $bullets = dedupe_bullets($bullets); $max_b = min(5, max(2, (int)$topic_art_count)); $bullets = array_map(fn($b) => trim($b), array_slice($bullets, 0, $max_b));
 
         db()->prepare('DELETE FROM topic_bullets WHERE topic_id = ?')->execute([$topic_id]);
         $st = db()->prepare('INSERT INTO topic_bullets (topic_id, bullet, display_order) VALUES (?, ?, ?)');

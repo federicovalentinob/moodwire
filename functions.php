@@ -413,7 +413,7 @@ function regenerate_stale_bullets(): void {
         )->fetchAll(PDO::FETCH_COLUMN);
 
         $art_list  = implode("\n", array_map(fn($t) => "- {$t}", $art_titles));
-        $max_b     = min(5, max(1, (int)$topic['article_count']));
+        $max_b     = min(5, max(2, (int)$topic['article_count']));
         $prompt    = str_replace(
             ['{{topic}}', '{{articles}}', '{{num_bullets}}'],
             [$topic['title'], $art_list, (string)$max_b],
