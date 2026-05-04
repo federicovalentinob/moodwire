@@ -57,61 +57,46 @@ $links = array_values($links);
 <title>Moodwire Globe</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#0f172a; overflow:hidden; font-family:-apple-system,sans-serif; touch-action:none; }
+  body { background:#050a18; overflow:hidden; font-family:-apple-system,sans-serif; touch-action:none; }
   canvas { display:block; }
-
+  #nav {
+    position:fixed; top:0; left:0; right:0; z-index:10;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:12px 16px; background:rgba(5,10,24,0.75); backdrop-filter:blur(8px);
+  }
+  #nav a { color:#94a3b8; text-decoration:none; font-size:13px; }
+  #nav .logo { color:white; font-weight:800; font-size:16px; }
   #info {
-    position:fixed; bottom:0; left:0; right:0;
-    background:rgba(15,23,42,0.95); color:white;
-    padding:16px 20px 32px; transform:translateY(100%);
+    position:fixed; bottom:0; left:0; right:0; z-index:10;
+    background:rgba(15,23,42,0.96); color:white;
+    padding:16px 20px 36px; transform:translateY(100%);
     transition:transform 0.3s ease; border-radius:20px 20px 0 0;
     backdrop-filter:blur(10px);
   }
   #info.open { transform:translateY(0); }
-  #info h2 { font-size:15px; margin-bottom:6px; line-height:1.4; }
-  #info .meta { font-size:12px; color:#94a3b8; display:flex; gap:12px; flex-wrap:wrap; }
-  #info .badge {
-    display:inline-block; padding:2px 8px; border-radius:12px;
-    font-size:11px; font-weight:700; color:white;
-  }
-  #info .close {
-    position:absolute; top:12px; right:16px; background:none; border:none;
-    color:#64748b; font-size:22px; cursor:pointer;
-  }
-
-  #nav {
-    position:fixed; top:0; left:0; right:0;
-    display:flex; justify-content:space-between; align-items:center;
-    padding:12px 16px; background:rgba(15,23,42,0.8); backdrop-filter:blur(8px);
-  }
-  #nav a { color:#94a3b8; text-decoration:none; font-size:13px; }
-  #nav .logo { color:white; font-weight:800; font-size:16px; }
-
-  #hint {
-    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
-    color:#475569; font-size:11px; text-align:center;
-    transition:opacity 1s; pointer-events:none;
-  }
+  #info h2 { font-size:15px; margin-bottom:8px; line-height:1.4; }
+  #info .meta { font-size:12px; color:#94a3b8; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  #info .badge { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:700; color:white; }
+  #info .close { position:absolute; top:12px; right:16px; background:none; border:none; color:#64748b; font-size:22px; cursor:pointer; }
+  #hint { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); color:#334155; font-size:11px; pointer-events:none; transition:opacity 1s; }
 </style>
 </head>
 <body>
 <div id="nav">
   <a href="index.php" class="logo">Moodwire</a>
-  <a href="map.php">← Desktop map</a>
+  <a href="map.php">← Map</a>
 </div>
-
 <div id="info">
   <button class="close" onclick="closeInfo()">×</button>
   <h2 id="info-title"></h2>
   <div class="meta">
     <span id="info-cat" class="badge"></span>
     <span id="info-type"></span>
-    <span id="info-anxiety"></span>
+    <span id="info-anx"></span>
     <span id="info-count"></span>
   </div>
 </div>
-
-<div id="hint">Drag to rotate · Tap a dot for details</div>
+<div id="hint">Drag to rotate · Tap a dot</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -119,90 +104,33 @@ $links = array_values($links);
 const nodes = <?= json_encode(array_values($nodes)) ?>;
 const links = <?= json_encode($links) ?>;
 
-// ── Scene setup ──────────────────────────────────────────────────────────────
-const W = window.innerWidth, H = window.innerHeight;
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(W, H);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setClearColor(0x050a18);
-document.body.appendChild(renderer.domElement);
+// ── Palette (same as map.php) ─────────────────────────────────────────────────
+const ANX_PALETTE = ['#16a34a','#4ade80','#a3e635','#facc15','#fb923c','#f97316','#ef4444','#dc2626','#b91c1c','#7f1d1d'];
+const anxColor = a => parseInt(ANX_PALETTE[Math.min(9,Math.max(0,Math.floor(a)))].replace('#',''),16);
+const hexInt   = h => parseInt(h.replace('#',''),16);
 
-const scene  = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, W/H, 0.1, 500);
-camera.position.set(0, 5, 16);
-camera.lookAt(0, -16, 0);
+// ── Size scale (same as map.php) ──────────────────────────────────────────────
+const maxCount = Math.max(...nodes.map(d => d.count));
+const dotR = d => 0.10 + (d.count / maxCount) * 0.45;
 
-// Lights
-scene.add(new THREE.AmbientLight(0x8899bb, 0.6));
-const dir = new THREE.DirectionalLight(0xffffff, 1.0);
-dir.position.set(10, 20, 10);
-scene.add(dir);
-
-// Stars
-const starGeo = new THREE.BufferGeometry();
-const starPts = [];
-for (let i = 0; i < 3000; i++) {
-  const phi = Math.random() * Math.PI * 2;
-  const theta = Math.random() * Math.PI;
-  const r = 120 + Math.random() * 60;
-  starPts.push(r*Math.sin(theta)*Math.cos(phi), r*Math.cos(theta), r*Math.sin(theta)*Math.sin(phi));
-}
-starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPts, 3));
-scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color:0xffffff, size:0.25 })));
-
-// Sphere group — push planet down so horizon shows at screen bottom
-const sphereGroup = new THREE.Group();
-sphereGroup.position.y = -16;
-scene.add(sphereGroup);
-
-// ── Globe radius ─────────────────────────────────────────────────────────────
-const R = 18;
-
-// Planet base sphere
-const planetGeo = new THREE.SphereGeometry(R, 64, 64);
-const planetMat = new THREE.MeshPhongMaterial({ color: 0x0d1b2a, shininess: 10 });
-sphereGroup.add(new THREE.Mesh(planetGeo, planetMat));
-
-// Atmosphere halo
-const atmoGeo = new THREE.SphereGeometry(R * 1.025, 64, 64);
-const atmoMat = new THREE.MeshPhongMaterial({ color:0x1a3a6a, transparent:true, opacity:0.18, side:THREE.BackSide });
-sphereGroup.add(new THREE.Mesh(atmoGeo, atmoMat));
-
-// Controls — horizontal rotation only for fly-over feel
-const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.target.set(0, -16, 0);   // orbit around planet centre
-controls.enableDamping  = true;
-controls.dampingFactor  = 0.06;
-controls.enableZoom     = true;
-controls.minDistance    = 10;
-controls.maxDistance    = 30;
-controls.minPolarAngle  = 0.5;    // can't go below equator
-controls.maxPolarAngle  = 1.35;   // can't flip under planet
-controls.autoRotate      = true;
-controls.autoRotateSpeed = 0.35;
-controls.update();
-
-
-// ── Coordinate mapping ────────────────────────────────────────────────────────
-// Y (vertical): anxiety — high=top (phi≈0), low=bottom (phi≈π)
-// X (horizontal): type zone × category spread within zone
-const typeZone = { educative:[-Math.PI, -Math.PI/3], informative:[-Math.PI/3, Math.PI/3], entertainment:[Math.PI/3, Math.PI] };
+// ── Sphere positioning (same axes as map.php) ─────────────────────────────────
+const R = 10;
+const typeZone = { educative:[-Math.PI,-Math.PI/3], informative:[-Math.PI/3,Math.PI/3], entertainment:[Math.PI/3,Math.PI] };
 const catsByType = { educative:[], informative:[], entertainment:[] };
-nodes.forEach(d => { if (!catsByType[d.type]?.includes(d.category)) catsByType[d.type]?.push(d.category); });
+nodes.forEach(d => { if (catsByType[d.type] && !catsByType[d.type].includes(d.category)) catsByType[d.type].push(d.category); });
 
 function nodeTheta(d) {
-  const zone = typeZone[d.type] ?? [-Math.PI, Math.PI];
+  const zone = typeZone[d.type] ?? [-Math.PI,Math.PI];
   const cats = catsByType[d.type] ?? [];
   const ci   = cats.indexOf(d.category);
   const t    = cats.length > 1 ? (ci + 0.5) / cats.length : 0.5;
   return zone[0] + t * (zone[1] - zone[0]);
 }
 function nodePhi(d) {
-  // phi: 0=north, π=south — high anxiety → north
-  const margin = 0.25;
+  const margin = 0.2;
   return margin + (1 - d.anxiety / 10) * (Math.PI - 2 * margin);
 }
-function spherePos(phi, theta) {
+function toXYZ(phi, theta) {
   return new THREE.Vector3(
     R * Math.sin(phi) * Math.cos(theta),
     R * Math.cos(phi),
@@ -210,104 +138,140 @@ function spherePos(phi, theta) {
   );
 }
 
-// ── Size scale ───────────────────────────────────────────────────────────────
-const maxCount = Math.max(...nodes.map(d => d.count));
-const dotR = d => 0.18 + (d.count / maxCount) * 0.55;
+// ── Scene ─────────────────────────────────────────────────────────────────────
+const W = window.innerWidth, H = window.innerHeight;
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(W, H);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x050a18);
+document.body.appendChild(renderer.domElement);
 
-// ── Place dots ───────────────────────────────────────────────────────────────
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, W/H, 0.1, 300);
+camera.position.set(0, 4, 20);
+camera.lookAt(0, -8, 0);
+
+// Lights
+scene.add(new THREE.AmbientLight(0x8899cc, 0.7));
+const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+sun.position.set(8, 15, 8);
+scene.add(sun);
+
+// Stars
+const sg = new THREE.BufferGeometry();
+const sp = [];
+for (let i=0;i<2500;i++) {
+  const a=Math.random()*Math.PI*2, b=Math.random()*Math.PI, r=80+Math.random()*40;
+  sp.push(r*Math.sin(b)*Math.cos(a), r*Math.cos(b), r*Math.sin(b)*Math.sin(a));
+}
+sg.setAttribute('position', new THREE.Float32BufferAttribute(sp,3));
+scene.add(new THREE.Points(sg, new THREE.PointsMaterial({color:0xffffff,size:0.2})));
+
+// Planet group — push down for fly-over effect
+const planet = new THREE.Group();
+planet.position.y = -9;
+scene.add(planet);
+
+// Dark planet base
+planet.add(new THREE.Mesh(
+  new THREE.SphereGeometry(R, 64, 64),
+  new THREE.MeshPhongMaterial({ color:0x0d1b2a, shininess:8 })
+));
+// Atmosphere
+planet.add(new THREE.Mesh(
+  new THREE.SphereGeometry(R*1.022, 64, 64),
+  new THREE.MeshPhongMaterial({ color:0x1a3a6a, transparent:true, opacity:0.15, side:THREE.BackSide })
+));
+
+// Controls
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(0, -9, 0);
+controls.enableDamping  = true;
+controls.dampingFactor  = 0.06;
+controls.enableZoom     = true;
+controls.minDistance    = 12;
+controls.maxDistance    = 28;
+controls.minPolarAngle  = 0.45;
+controls.maxPolarAngle  = 1.4;
+controls.autoRotate     = true;
+controls.autoRotateSpeed = 0.35;
+controls.update();
+
+// ── Place dots ────────────────────────────────────────────────────────────────
 const meshes = [];
-const positions = [];
+const positions = nodes.map(d => toXYZ(nodePhi(d), nodeTheta(d)));
 
-nodes.forEach(d => {
-  const phi   = nodePhi(d);
-  const theta = nodeTheta(d);
-  const pos   = spherePos(phi, theta);
-  positions.push(pos);
+nodes.forEach((d, i) => {
+  const pos  = positions[i];
+  const r    = dotR(d);
+  const geo  = new THREE.SphereGeometry(r, 14, 14);
 
-  const geo  = new THREE.SphereGeometry(dotR(d), 16, 16);
-  const mat  = new THREE.MeshPhongMaterial({
-    color:    parseInt(d.color.replace('#',''), 16),
-    emissive: parseInt(d.anx_color.replace('#',''), 16),
-    emissiveIntensity: 0.3,
-    shininess: 60,
-  });
+  // Outer ring (anxiety color)
+  const ringGeo = new THREE.SphereGeometry(r * 1.3, 14, 14);
+  const ringMat = new THREE.MeshPhongMaterial({ color: anxColor(d.anxiety), transparent:true, opacity:0.55, side:THREE.BackSide });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.position.copy(pos);
+  planet.add(ring);
+
+  // Dot (category color)
+  const mat  = new THREE.MeshPhongMaterial({ color: hexInt(d.color), shininess:60, emissive: anxColor(d.anxiety), emissiveIntensity:0.12 });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.copy(pos);
   mesh.userData = d;
-  sphereGroup.add(mesh);
+  planet.add(mesh);
   meshes.push(mesh);
 });
 
-// ── Draw links ───────────────────────────────────────────────────────────────
+// ── Links (arcs along sphere surface) ────────────────────────────────────────
 links.forEach(([si, ti]) => {
   const p1 = positions[si], p2 = positions[ti];
   if (!p1 || !p2) return;
-  // Arc along sphere surface using intermediate points
   const pts = [];
-  for (let t = 0; t <= 1; t += 0.1) {
-    const v = new THREE.Vector3().lerpVectors(p1, p2, t).normalize().multiplyScalar(R * 1.01);
-    pts.push(v);
+  for (let t=0; t<=1; t+=0.08) {
+    pts.push(new THREE.Vector3().lerpVectors(p1, p2, t).normalize().multiplyScalar(R * 1.01));
   }
-  const geo  = new THREE.BufferGeometry().setFromPoints(pts);
-  const mat  = new THREE.LineBasicMaterial({
-    color: parseInt(nodes[si].color.replace('#',''), 16),
-    opacity: 0.25, transparent: true
-  });
-  sphereGroup.add(new THREE.Line(geo, mat));
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color: hexInt(nodes[si].color), opacity:0.22, transparent:true });
+  planet.add(new THREE.Line(geo, mat));
 });
 
-// ── Raycasting for tap ───────────────────────────────────────────────────────
-const raycaster = new THREE.Raycaster();
-const pointer   = new THREE.Vector2();
-let   lastTouch = null;
+// ── Raycasting ────────────────────────────────────────────────────────────────
+const ray = new THREE.Raycaster();
+const ptr = new THREE.Vector2();
+let lastTouch = null;
 
 function onTap(cx, cy) {
-  pointer.x = (cx / W) * 2 - 1;
-  pointer.y = -(cy / H) * 2 + 1;
-  raycaster.setFromCamera(pointer, camera);
-  const hits = raycaster.intersectObjects(meshes, false);
-  if (hits.length) showInfo(hits[0].object.userData);
+  ptr.x = (cx/W)*2-1; ptr.y = -(cy/H)*2+1;
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObjects(meshes, false);
+  if (hits.length) { showInfo(hits[0].object.userData); controls.autoRotate = false; }
 }
+renderer.domElement.addEventListener('click',    e => onTap(e.clientX, e.clientY));
+renderer.domElement.addEventListener('touchstart', e => { lastTouch={x:e.touches[0].clientX,y:e.touches[0].clientY}; controls.autoRotate=false; }, {passive:true});
+renderer.domElement.addEventListener('touchend',   e => {
+  const t=e.changedTouches[0];
+  if (lastTouch && Math.abs(t.clientX-lastTouch.x)<8 && Math.abs(t.clientY-lastTouch.y)<8) onTap(t.clientX,t.clientY);
+}, {passive:true});
 
-renderer.domElement.addEventListener('click', e => onTap(e.clientX, e.clientY));
-renderer.domElement.addEventListener('touchend', e => {
-  const t = e.changedTouches[0];
-  if (lastTouch && Math.abs(t.clientX - lastTouch.x) < 8 && Math.abs(t.clientY - lastTouch.y) < 8) {
-    onTap(t.clientX, t.clientY);
-  }
-}, { passive: true });
-renderer.domElement.addEventListener('touchstart', e => {
-  lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  controls.autoRotate = false;
-}, { passive: true });
-
-// ── Info panel ───────────────────────────────────────────────────────────────
 function showInfo(d) {
   document.getElementById('info-title').textContent = d.title;
-  const badge = document.getElementById('info-cat');
-  badge.textContent = d.category;
-  badge.style.background = d.color;
+  const b = document.getElementById('info-cat');
+  b.textContent = d.category; b.style.background = d.color;
   document.getElementById('info-type').textContent = d.type;
-  document.getElementById('info-anxiety').textContent = 'Anxiety ' + d.anxiety.toFixed(1);
-  document.getElementById('info-count').textContent = d.count + ' article' + (d.count>1?'s':'');
+  document.getElementById('info-anx').textContent  = 'Anxiety ' + d.anxiety.toFixed(1);
+  document.getElementById('info-count').textContent= d.count + ' article' + (d.count>1?'s':'');
   document.getElementById('info').classList.add('open');
 }
-function closeInfo() {
-  document.getElementById('info').classList.remove('open');
-  controls.autoRotate = true;
-}
+function closeInfo() { document.getElementById('info').classList.remove('open'); controls.autoRotate=true; }
 
-// Hide hint after 4s
-setTimeout(() => document.getElementById('hint').style.opacity = 0, 4000);
+setTimeout(() => document.getElementById('hint').style.opacity=0, 4000);
 
-// ── Resize ───────────────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.aspect = innerWidth/innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(innerWidth, innerHeight);
 });
 
-// ── Render loop ──────────────────────────────────────────────────────────────
 (function animate() {
   requestAnimationFrame(animate);
   controls.update();
