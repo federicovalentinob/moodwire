@@ -303,7 +303,7 @@ types.forEach((type, ti) => {
       .paddingInner(1)
       .paddingOuter(0)
       .paddingTop(d => d.depth === 1 ? 2 : 1) // extra padding between categories
-      .tile(d3.treemapBinary)(root);
+      .tile(d3.treemapSliceDice)(root);
 
     // Draw category blocs (depth=1 nodes) with a subtle border
     svg.selectAll(null)
