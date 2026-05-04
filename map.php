@@ -167,6 +167,19 @@ foreach ($types as $type) {
     <?php endforeach; ?>
   </div>
 
+  <!-- Anxiety border legend -->
+  <div style="display:flex;align-items:center;gap:6px;margin-bottom:20px;font-size:11px;color:#64748b">
+    <span style="font-weight:700;color:#1e293b">Border = Anxiety:</span>
+    <span>0</span>
+    <?php
+    $palette = ['#16a34a','#4ade80','#a3e635','#facc15','#fb923c','#f97316','#ef4444','#dc2626','#b91c1c','#7f1d1d'];
+    foreach ($palette as $i => $col):
+    ?>
+      <div style="width:28px;height:12px;background:<?= $col ?>;border-radius:3px" title="<?= $i ?>–<?= $i+1 ?>"></div>
+    <?php endforeach; ?>
+    <span>10</span>
+  </div>
+
   <div class="map-outer">
     <!-- X axis labels (Type) -->
     <div class="axis-x-labels">
@@ -197,6 +210,24 @@ const data    = <?= json_encode($d3_data) ?>;
 const types   = ['educative','informative','entertainment'];
 const bands   = ['high','medium','low'];
 const bandLabels = {high:'High',medium:'Medium',low:'Low'};
+
+// 10-level green→yellow→red gradient for anxiety (0–10)
+const anxietyPalette = [
+  '#16a34a', // 0–1  deep green
+  '#4ade80', // 1–2  light green
+  '#a3e635', // 2–3  yellow-green
+  '#facc15', // 3–4  yellow
+  '#fb923c', // 4–5  light orange (was amber border)
+  '#f97316', // 5–6  orange
+  '#ef4444', // 6–7  light red
+  '#dc2626', // 7–8  red
+  '#b91c1c', // 8–9  dark red
+  '#7f1d1d', // 9–10 very dark red
+];
+function anxietyColor(a) {
+  const idx = Math.min(9, Math.max(0, Math.floor(a)));
+  return anxietyPalette[idx];
+}
 
 const W = document.getElementById('map-svg').parentElement.clientWidth;
 const H = Math.round(W * 0.65);
@@ -291,12 +322,7 @@ types.forEach((type, ti) => {
         .attr('width',  d => Math.max(0, d.x1 - d.x0))
         .attr('height', d => Math.max(0, d.y1 - d.y0))
         .attr('fill',   d => d.data.color)
-        .attr('stroke', d => {
-          const a = parseFloat(d.data.anxiety);
-          if (a >= 7) return '#dc2626';
-          if (a >= 4) return '#ca8a04';
-          return '#16a34a';
-        })
+        .attr('stroke', d => anxietyColor(parseFloat(d.data.anxiety)))
         .attr('rx', 2)
         .on('mousemove', function(event, d) {
           tip.style.display = 'block';
