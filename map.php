@@ -133,33 +133,29 @@ const rScale = d3.scaleSqrt()
 const anxPalette = ['#16a34a','#4ade80','#a3e635','#facc15','#fb923c','#f97316','#ef4444','#dc2626','#b91c1c','#7f1d1d'];
 const anxColor = a => anxPalette[Math.min(9, Math.max(0, Math.floor(a)))];
 
-// Category cluster positions (evenly spread)
+// Y target: high anxiety → top, low anxiety → bottom
+const pad = 40;
+const yTarget = d => pad + (1 - d.anxiety / 10) * (H - 2 * pad);
+
+// X target: spread categories evenly across width
 const categories = [...new Set(nodes.map(d => d.category))];
-const clusterPos = {};
+const catX = {};
 categories.forEach((cat, i) => {
-  const angle = (i / categories.length) * 2 * Math.PI - Math.PI / 2;
-  const r = Math.min(W, H) * 0.32;
-  clusterPos[cat] = { x: W/2 + r * Math.cos(angle), y: H/2 + r * Math.sin(angle) };
+  catX[cat] = pad + (i + 0.5) / categories.length * (W - 2 * pad);
 });
+const xTarget = d => catX[d.category] ?? W / 2;
 
 // Force simulation
 const sim = d3.forceSimulation(nodes)
   .force('link', d3.forceLink(links).id(d => d.id).distance(d => {
-    const r1 = rScale(nodes[d.source.index ?? d.source].count);
-    const r2 = rScale(nodes[d.target.index ?? d.target].count);
-    return r1 + r2 + 20;
-  }).strength(0.4))
-  .force('charge', d3.forceManyBody().strength(-120))
-  .force('cluster', alpha => {
-    nodes.forEach(d => {
-      const cp = clusterPos[d.category];
-      if (!cp) return;
-      d.vx += (cp.x - d.x) * alpha * 0.08;
-      d.vy += (cp.y - d.y) * alpha * 0.08;
-    });
-  })
+    const r1 = rScale(nodes[d.source.index ?? d.source]?.count ?? 1);
+    const r2 = rScale(nodes[d.target.index ?? d.target]?.count ?? 1);
+    return r1 + r2 + 18;
+  }).strength(0.3))
+  .force('charge', d3.forceManyBody().strength(-90))
+  .force('y', d3.forceY(yTarget).strength(0.55))
+  .force('x', d3.forceX(xTarget).strength(0.2))
   .force('collision', d3.forceCollide().radius(d => rScale(d.count) + 3))
-  .force('center', d3.forceCenter(W/2, H/2).strength(0.04))
   .force('bounds', () => {
     nodes.forEach(d => {
       const r = rScale(d.count);
@@ -167,6 +163,17 @@ const sim = d3.forceSimulation(nodes)
       d.y = Math.max(r, Math.min(H - r, d.y));
     });
   });
+
+// Y-axis anxiety labels
+[10,8,6,4,2,0].forEach(val => {
+  const y = pad + (1 - val/10) * (H - 2*pad);
+  svg.append('line').attr('x1', 0).attr('y1', y).attr('x2', W).attr('y2', y)
+    .attr('stroke', '#f1f5f9').attr('stroke-width', 1).attr('stroke-dasharray', '4,4');
+  svg.append('text').attr('x', 4).attr('y', y - 4)
+    .attr('font-size', 10).attr('fill', '#94a3b8')
+    .attr('font-family', '-apple-system, sans-serif')
+    .text('anxiety ' + val);
+});
 
 // Draw links
 const link = svg.append('g')
