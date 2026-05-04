@@ -127,7 +127,7 @@ const tip = document.getElementById('tooltip');
 // Radius scale: sqrt so area ∝ count
 const rScale = d3.scaleSqrt()
   .domain([1, d3.max(nodes, d => d.count)])
-  .range([5, 28]);
+  .range([8, 42]);
 
 // Anxiety border color
 const anxPalette = ['#16a34a','#4ade80','#a3e635','#facc15','#fb923c','#f97316','#ef4444','#dc2626','#b91c1c','#7f1d1d'];
@@ -160,9 +160,9 @@ const sim = d3.forceSimulation(nodes)
   .force('link', d3.forceLink(links).id(d => d.id).distance(d => {
     const r1 = rScale(nodes[d.source.index ?? d.source]?.count ?? 1);
     const r2 = rScale(nodes[d.target.index ?? d.target]?.count ?? 1);
-    return r1 + r2 + 18;
-  }).strength(0.3))
-  .force('charge', d3.forceManyBody().strength(-90))
+    return r1 + r2 + 8;
+  }).strength(0.15))
+  .force('charge', d3.forceManyBody().strength(-60))
   .force('y', d3.forceY(yTarget).strength(0.55))
   .force('x', d3.forceX(xTarget).strength(0.2))
   .force('collision', d3.forceCollide().radius(d => rScale(d.count) + 3))
