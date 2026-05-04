@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/functions.php';
 
-$types      = ['informative', 'educative', 'entertainment'];
+$types      = ['educative', 'informative', 'entertainment'];
 $anx_bands  = [
     'high'   => ['label' => 'High Anxiety',   'min' => 7,  'max' => 10],
     'medium' => ['label' => 'Medium Anxiety',  'min' => 4,  'max' => 6.99],
@@ -154,8 +154,8 @@ foreach ($types as $type) {
   <div class="map-outer">
     <!-- X axis labels (Type) -->
     <div class="axis-x-labels">
-      <div class="axis-x-label">Informative</div>
       <div class="axis-x-label">Educative</div>
+      <div class="axis-x-label">Informative</div>
       <div class="axis-x-label">Entertainment</div>
     </div>
 
@@ -178,7 +178,7 @@ foreach ($types as $type) {
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <script>
 const data    = <?= json_encode($d3_data) ?>;
-const types   = <?= json_encode($types) ?>;
+const types   = ['educative','informative','entertainment'];
 const bands   = ['high','medium','low'];
 const bandLabels = {high:'High',medium:'Medium',low:'Low'};
 
@@ -190,19 +190,20 @@ document.getElementById('map-svg').setAttribute('height', H);
 const svg = d3.select('#map-svg');
 const tip = document.getElementById('tooltip');
 
-// Compute column widths & row heights proportional to topic counts
-function countCell(type, band) {
+// Compute column widths & row heights proportional to total article counts
+function articlesInCell(type, band) {
   const typeNode = data.children.find(d => d.name === type);
   const bandNode = typeNode?.children.find(d => d.name === band);
-  return bandNode?.children.length || 0;
+  return (bandNode?.children || []).reduce((s,t) => s + (t.count||1), 0);
 }
 
-const typeTotals = types.map(t => bands.reduce((s,b) => s + countCell(t,b), 0));
-const bandTotals = bands.map(b => types.reduce((s,t) => s + countCell(t,b), 0));
+const typeTotals = types.map(t => bands.reduce((s,b) => s + articlesInCell(t,b), 0));
+const bandTotals = bands.map(b => types.reduce((s,t) => s + articlesInCell(t,b), 0));
 const total = typeTotals.reduce((a,b) => a+b, 0) || 1;
 
-const colWidths  = typeTotals.map(n => Math.max(n/total * W, W/3 * 0.2));
-const rowHeights = bandTotals.map(n => Math.max(n/total * H, H/3 * 0.2));
+// Minimum 10% of axis to avoid invisible cells
+const colWidths  = typeTotals.map(n => Math.max(n/total * W, W * 0.10));
+const rowHeights = bandTotals.map(n => Math.max(n/total * H, H * 0.10));
 
 // Normalize
 const wSum = colWidths.reduce((a,b)=>a+b,0);
@@ -231,8 +232,9 @@ types.forEach((type, ti) => {
 
     d3.treemap()
       .size([w, h])
-      .padding(2)
-      .tile(d3.treemapSquarify)(root);
+      .padding(1)
+      .paddingOuter(0)
+      .tile(d3.treemapBinary)(root);
 
     svg.selectAll(null)
       .data(root.leaves())
