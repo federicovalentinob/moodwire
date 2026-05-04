@@ -51,6 +51,7 @@ $logs = db()->query('SELECT * FROM logs ORDER BY created_at DESC LIMIT 30')->fet
 <div class="container">
   <nav class="nav">
     <a href="index.php" class="nav-logo">Moodwire</a>
+    <a href="map.php">Map</a>
     <a href="feeds.php">Feeds</a>
     <a href="run.php" class="active">Run Pipeline</a>
   </nav>
