@@ -113,30 +113,84 @@ function fetch_rss(string $url): array {
         $title = trim((string)($item->title ?? ''));
         $url   = trim((string)($item->link ?? $item->id ?? ''));
         $desc  = trim(strip_tags((string)($item->description ?? $item->summary ?? $item->content ?? '')));
-        $pub   = trim((string)($item->pubDate ?? $item->published ?? $item->updated ?? ''));
+        $pub   = trim((string)($item->published ?? $item->updated ?? $item->pubDate ?? ''));
 
         if (!$title || !$url) continue;
+
+        // Extract image URL from media:content, media:thumbnail or enclosure
+        $image_url = null;
+        $item_xml  = $item->asXML();
+        if (preg_match('/media:(?:content|thumbnail)[^>]+url=["\']([^"\']+)["\']/', $item_xml, $m)) {
+            $image_url = html_entity_decode($m[1]);
+        } elseif (preg_match('/<enclosure[^>]+url=["\']([^"\']+)["\'][^>]+type=["\']image/i', $item_xml, $m)) {
+            $image_url = html_entity_decode($m[1]);
+        }
+        if ($image_url) $image_url = preg_replace('/width=\d+&?/', '', $image_url); // strip width param for best quality
 
         $articles[] = [
             'title'        => $title,
             'url'          => $url,
             'raw_content'  => $desc,
             'published_at' => $pub ? date('Y-m-d H:i:s', strtotime($pub)) : null,
+            'image_url'    => $image_url,
         ];
     }
     return $articles;
 }
 
+function download_thumbnail(string $image_url): ?string {
+    $ext      = strtolower(pathinfo(parse_url($image_url, PHP_URL_PATH), PATHINFO_EXTENSION)) ?: 'jpg';
+    if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) $ext = 'jpg';
+    $filename = md5($image_url) . '.jpg';
+    $path     = __DIR__ . '/thumbs/' . $filename;
+
+    if (file_exists($path)) return 'thumbs/' . $filename;
+
+    $ch = curl_init($image_url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 8,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_USERAGENT      => 'Mozilla/5.0',
+        CURLOPT_REFERER        => parse_url($image_url, PHP_URL_SCHEME) . '://' . parse_url($image_url, PHP_URL_HOST),
+    ]);
+    $raw = curl_exec($ch);
+    @curl_close($ch);
+    if (!$raw) return null;
+
+    $src = @imagecreatefromstring($raw);
+    if (!$src) return null;
+
+    $sw = imagesx($src); $sh = imagesy($src);
+    $tw = 300; $th = 180;
+    $ratio = min($tw / $sw, $th / $sh);
+    $nw = (int)($sw * $ratio); $nh = (int)($sh * $ratio);
+
+    $dst = imagecreatetruecolor($tw, $th);
+    $bg  = imagecolorallocate($dst, 240, 240, 240);
+    imagefill($dst, 0, 0, $bg);
+    $ox = (int)(($tw - $nw) / 2); $oy = (int)(($th - $nh) / 2);
+    imagecopyresampled($dst, $src, $ox, $oy, 0, 0, $nw, $nh, $sw, $sh);
+    imagejpeg($dst, $path, 80);
+
+    return 'thumbs/' . $filename;
+}
+
 function save_article(int $feed_id, array $article): bool {
     try {
-        db()->prepare('INSERT IGNORE INTO articles (feed_id, title, url, raw_content, published_at)
-                       VALUES (?, ?, ?, ?, ?)')
+        $image_path = null;
+        if (!empty($article['image_url'])) {
+            $image_path = download_thumbnail($article['image_url']);
+        }
+        db()->prepare('INSERT IGNORE INTO articles (feed_id, title, url, raw_content, published_at, image_path)
+                       VALUES (?, ?, ?, ?, ?, ?)')
            ->execute([
                $feed_id,
                $article['title'],
                $article['url'],
                $article['raw_content'],
                $article['published_at'],
+               $image_path,
            ]);
         return true;
     } catch (Exception $e) {

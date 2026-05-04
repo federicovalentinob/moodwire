@@ -137,7 +137,10 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
         $a_color = anxiety_color($a_anx);
         $a_tags  = array_filter(array_map('trim', explode(',', $a['tags'] ?? '')));
       ?>
-        <a href="<?= htmlspecialchars($a['url']) ?>" target="_blank" class="article-row">
+        <a href="<?= htmlspecialchars($a['url']) ?>" target="_blank" class="article-row <?= !empty($a['image_path']) ? 'has-thumb' : '' ?>">
+          <?php if (!empty($a['image_path'])): ?>
+            <img src="<?= htmlspecialchars($a['image_path']) ?>" class="article-thumb" alt="">
+          <?php endif; ?>
           <span class="article-anx" style="background:<?= $a_color ?>"><?= number_format($a_anx, 0) ?></span>
           <span class="article-title"><?= htmlspecialchars($a['title']) ?></span>
           <span class="article-source"><?= htmlspecialchars($a['feed_name']) ?></span>

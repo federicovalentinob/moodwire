@@ -2,7 +2,13 @@
 
 require_once __DIR__ . '/functions.php';
 
-// Delete articles older than 24h
+// Delete articles older than 24h — remove thumbnails first
+$stale = db()->query("SELECT image_path FROM articles WHERE
+    fetched_at < NOW() - INTERVAL 24 HOUR
+    OR (published_at IS NOT NULL AND published_at < NOW() - INTERVAL 24 HOUR)")->fetchAll(PDO::FETCH_COLUMN);
+foreach ($stale as $path) {
+    if ($path && file_exists(__DIR__ . '/' . $path)) @unlink(__DIR__ . '/' . $path);
+}
 $deleted = db()->exec("DELETE FROM articles WHERE
     fetched_at < NOW() - INTERVAL 24 HOUR
     OR (published_at IS NOT NULL AND published_at < NOW() - INTERVAL 24 HOUR)");
