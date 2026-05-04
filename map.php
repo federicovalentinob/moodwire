@@ -89,6 +89,7 @@ $links = array_values($links);
     <a href="index.php" class="nav-logo">Moodwire</a>
     <a href="index.php">Topics</a>
     <a href="map.php" class="active">Map</a>
+    <a href="mobile.php">Globe</a>
     <a href="feeds.php">Feeds</a>
     <a href="run.php">Pipeline</a>
   </nav>
