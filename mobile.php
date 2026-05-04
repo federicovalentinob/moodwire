@@ -192,8 +192,6 @@ controls.dampingFactor  = 0.06;
 controls.enableZoom     = true;
 controls.minDistance    = 12;
 controls.maxDistance    = 28;
-controls.minPolarAngle  = 0.45;
-controls.maxPolarAngle  = 1.4;
 controls.autoRotate     = true;
 controls.autoRotateSpeed = 0.35;
 controls.update();
