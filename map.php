@@ -200,8 +200,8 @@ foreach ($types as $type) {
       <svg id="map-svg">
         <defs>
           <filter id="organic" x="-2%" y="-2%" width="104%" height="104%">
-            <feTurbulence type="turbulence" baseFrequency="0.018 0.022" numOctaves="4" seed="3" result="noise"/>
-            <feDisplacementMap in="SourceGraphic" in2="noise" scale="9" xChannelSelector="R" yChannelSelector="G"/>
+            <feTurbulence type="turbulence" baseFrequency="0.012 0.015" numOctaves="5" seed="3" result="noise"/>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="40" xChannelSelector="R" yChannelSelector="G"/>
           </filter>
         </defs>
         <g id="map-content" filter="url(#organic)"></g>
