@@ -35,16 +35,17 @@ foreach ($topics as $i => $t) {
     ];
 }
 
-// Build links: 3 per node, same category
+// Build links: 3 per node to closest (by category) — sort by anxiety proximity for meaningful links
 $by_cat = [];
-foreach ($nodes as $n) $by_cat[$n['category']][] = $n['id'];
+foreach ($nodes as $n) $by_cat[$n['category']][] = $n;
 $links = [];
 foreach ($nodes as $n) {
-    $peers = array_values(array_filter($by_cat[$n['category']] ?? [], fn($id) => $id !== $n['id']));
-    shuffle($peers);
-    foreach (array_slice($peers, 0, 3) as $t) {
-        $key = min($n['id'],$t).'-'.max($n['id'],$t);
-        $links[$key] = [$n['id'], $t];
+    $peers = array_filter($by_cat[$n['category']] ?? [], fn($p) => $p['id'] !== $n['id']);
+    // Sort peers by anxiety proximity for more meaningful connections
+    usort($peers, fn($a, $b) => abs($a['anxiety'] - $n['anxiety']) <=> abs($b['anxiety'] - $n['anxiety']));
+    foreach (array_slice(array_values($peers), 0, 3) as $t) {
+        $key = min($n['id'],$t['id']).'-'.max($n['id'],$t['id']);
+        $links[$key] = [$n['id'], $t['id']];
     }
 }
 $links = array_values($links);
@@ -231,16 +232,28 @@ nodes.forEach((d, i) => {
   meshes.push(cap);
 });
 
-// ── Links (arcs along sphere surface) ────────────────────────────────────────
+// ── Links — arc between tower tops ───────────────────────────────────────────
 links.forEach(([si, ti]) => {
-  const p1 = positions[si], p2 = positions[ti];
-  if (!p1 || !p2) return;
+  const n1 = positions[si].clone().normalize();
+  const n2 = positions[ti].clone().normalize();
+  const h1 = towerH(nodes[si]);
+  const h2 = towerH(nodes[ti]);
+  const top1 = n1.clone().multiplyScalar(R + h1);
+  const top2 = n2.clone().multiplyScalar(R + h2);
+
+  // Arc: lerp between tops, push mid-points above sphere surface
   const pts = [];
-  for (let t=0; t<=1; t+=0.08) {
-    pts.push(new THREE.Vector3().lerpVectors(p1, p2, t).normalize().multiplyScalar(R * 1.01));
+  const steps = 16;
+  for (let t = 0; t <= 1; t += 1/steps) {
+    const p = new THREE.Vector3().lerpVectors(top1, top2, t);
+    const minR = R + Math.max(h1, h2) * 0.5;
+    if (p.length() < minR) p.normalize().multiplyScalar(minR);
+    pts.push(p);
   }
+  pts.push(top2.clone());
+
   const geo = new THREE.BufferGeometry().setFromPoints(pts);
-  const mat = new THREE.LineBasicMaterial({ color: hexInt(nodes[si].color), opacity:0.22, transparent:true });
+  const mat = new THREE.LineBasicMaterial({ color: hexInt(nodes[si].color), opacity: 0.4, transparent: true });
   planet.add(new THREE.Line(geo, mat));
 });
 
