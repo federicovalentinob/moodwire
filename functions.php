@@ -360,7 +360,7 @@ function dedupe_bullets(array $bullets): array {
 
 function trim_title(string $title): string {
     $words = explode(' ', trim($title));
-    return implode(' ', array_slice($words, 0, 5));
+    return implode(' ', array_slice($words, 0, 7));
 }
 
 function save_topic(string $title, array $bullets, float $anxiety_avg, array $article_ids, string $content_type = 'informative', ?string $category = null): int {
