@@ -47,6 +47,7 @@ h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
   cursor: pointer;
 }
 .filter-btn:hover, .filter-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+.filter-count { font-size: 10px; opacity: 0.7; margin-left: 2px; }
 .filter-btn.anxiety-low.active   { background: #16a34a; border-color: #16a34a; }
 .filter-btn.anxiety-medium.active { background: #d97706; border-color: #d97706; }
 .filter-btn.anxiety-high.active  { background: #dc2626; border-color: #dc2626; }

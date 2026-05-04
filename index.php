@@ -7,6 +7,19 @@ $filter_tag  = trim($_GET['tag']     ?? '');
 $filter_anx  = trim($_GET['anxiety'] ?? '');
 $filter_type = trim($_GET['type']    ?? '');
 
+// Counts for filter buttons
+$counts = db()->query("
+    SELECT
+        COUNT(*) as total,
+        SUM(anxiety_avg <= 3) as low,
+        SUM(anxiety_avg > 3 AND anxiety_avg <= 6) as medium,
+        SUM(anxiety_avg > 6) as high,
+        SUM(content_type = 'informative') as informative,
+        SUM(content_type = 'educative') as educative,
+        SUM(content_type = 'entertainment') as entertainment
+    FROM topics
+")->fetch();
+
 // Collect all unique tags across articles
 $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->fetchAll(PDO::FETCH_COLUMN);
 ?>
@@ -27,17 +40,17 @@ $all_tags = db()->query('SELECT DISTINCT tag FROM article_tags ORDER BY tag')->f
   </nav>
 
   <div class="filters">
-    <a href="index.php" class="filter-btn <?= !$filter_tag && !$filter_anx ? 'active' : '' ?>">All</a>
+    <a href="index.php" class="filter-btn <?= !$filter_tag && !$filter_anx && !$filter_type ? 'active' : '' ?>">All <span class="filter-count"><?= $counts['total'] ?></span></a>
 
     <span class="filter-sep">Anxiety:</span>
-    <a href="?anxiety=low"    class="filter-btn anxiety-low    <?= $filter_anx==='low'    ? 'active':'' ?>">Low (0–3)</a>
-    <a href="?anxiety=medium" class="filter-btn anxiety-medium <?= $filter_anx==='medium' ? 'active':'' ?>">Medium (4–6)</a>
-    <a href="?anxiety=high"   class="filter-btn anxiety-high   <?= $filter_anx==='high'   ? 'active':'' ?>">High (7–10)</a>
+    <a href="?anxiety=low"    class="filter-btn anxiety-low    <?= $filter_anx==='low'    ? 'active':'' ?>">Low <span class="filter-count"><?= $counts['low'] ?></span></a>
+    <a href="?anxiety=medium" class="filter-btn anxiety-medium <?= $filter_anx==='medium' ? 'active':'' ?>">Medium <span class="filter-count"><?= $counts['medium'] ?></span></a>
+    <a href="?anxiety=high"   class="filter-btn anxiety-high   <?= $filter_anx==='high'   ? 'active':'' ?>">High <span class="filter-count"><?= $counts['high'] ?></span></a>
 
     <span class="filter-sep">Type:</span>
-    <a href="?type=informative"   class="filter-btn <?= $filter_type==='informative'   ? 'active':'' ?>">Informative</a>
-    <a href="?type=educative"     class="filter-btn <?= $filter_type==='educative'     ? 'active':'' ?>">Educative</a>
-    <a href="?type=entertainment" class="filter-btn <?= $filter_type==='entertainment' ? 'active':'' ?>">Entertainment</a>
+    <a href="?type=informative"   class="filter-btn <?= $filter_type==='informative'   ? 'active':'' ?>">Informative <span class="filter-count"><?= $counts['informative'] ?></span></a>
+    <a href="?type=educative"     class="filter-btn <?= $filter_type==='educative'     ? 'active':'' ?>">Educative <span class="filter-count"><?= $counts['educative'] ?></span></a>
+    <a href="?type=entertainment" class="filter-btn <?= $filter_type==='entertainment' ? 'active':'' ?>">Entertainment <span class="filter-count"><?= $counts['entertainment'] ?></span></a>
 
   </div>
 
