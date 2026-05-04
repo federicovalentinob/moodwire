@@ -62,16 +62,31 @@ foreach ($types as $type) {
     $type_node = ['name' => $type, 'children' => []];
     foreach (array_keys($anx_bands) as $band) {
         $band_node = ['name' => $band, 'children' => []];
+
+        // Group topics by category within each cell
+        $by_cat = [];
         foreach ($cells[$type][$band] as $t) {
-            $band_node['children'][] = [
-                'name'     => $t['title'],
-                'category' => $t['category'],
-                'anxiety'  => $t['anxiety_avg'],
-                'count'    => (int)$t['article_count'],
-                'type'     => $t['content_type'],
-                'band'     => $band,
-                'color'    => $cat_colors[$t['category']] ?? '#94a3b8',
+            $by_cat[$t['category']][] = $t;
+        }
+        foreach ($by_cat as $cat => $cat_topics) {
+            $cat_node = [
+                'name'     => $cat,
+                'category' => $cat,
+                'color'    => $cat_colors[$cat] ?? '#94a3b8',
+                'children' => [],
             ];
+            foreach ($cat_topics as $t) {
+                $cat_node['children'][] = [
+                    'name'     => $t['title'],
+                    'category' => $t['category'],
+                    'anxiety'  => $t['anxiety_avg'],
+                    'count'    => (int)$t['article_count'],
+                    'type'     => $t['content_type'],
+                    'band'     => $band,
+                    'color'    => $cat_colors[$t['category']] ?? '#94a3b8',
+                ];
+            }
+            $band_node['children'][] = $cat_node;
         }
         $type_node['children'][] = $band_node;
     }
@@ -194,7 +209,8 @@ const tip = document.getElementById('tooltip');
 function articlesInCell(type, band) {
   const typeNode = data.children.find(d => d.name === type);
   const bandNode = typeNode?.children.find(d => d.name === band);
-  return (bandNode?.children || []).reduce((s,t) => s + (t.count||1), 0);
+  return (bandNode?.children || []).reduce((s, cat) =>
+    s + (cat.children || []).reduce((s2, t) => s2 + (t.count||1), 0), 0);
 }
 
 const typeTotals = types.map(t => bands.reduce((s,b) => s + articlesInCell(t,b), 0));
@@ -225,7 +241,7 @@ types.forEach((type, ti) => {
 
     const x = cx[ti], y = ry[bi], w = cw[ti], h = rh[bi];
 
-    // Build treemap for this cell
+    // Build treemap for this cell — with category as intermediate level
     const root = d3.hierarchy({ children: topics })
       .sum(d => d.count || 1)
       .sort((a,b) => b.value - a.value);
@@ -233,17 +249,35 @@ types.forEach((type, ti) => {
     d3.treemap()
       .size([w, h])
       .padding(1)
+      .paddingInner(1)
       .paddingOuter(0)
+      .paddingTop(d => d.depth === 1 ? 2 : 1) // extra padding between categories
       .tile(d3.treemapBinary)(root);
 
+    // Draw category blocs (depth=1 nodes) with a subtle border
+    svg.selectAll(null)
+      .data(root.descendants().filter(d => d.depth === 1))
+      .enter().append('rect')
+        .attr('x',      d => x + d.x0)
+        .attr('y',      d => y + d.y0)
+        .attr('width',  d => Math.max(0, d.x1 - d.x0))
+        .attr('height', d => Math.max(0, d.y1 - d.y0))
+        .attr('fill',   d => d.data.color)
+        .attr('opacity', 0.15)
+        .attr('stroke', d => d.data.color)
+        .attr('stroke-width', 2)
+        .attr('rx', 3)
+        .attr('pointer-events', 'none');
+
+    // Draw topic leaves
     svg.selectAll(null)
       .data(root.leaves())
       .enter().append('rect')
         .attr('class', 'topic-rect')
         .attr('x',      d => x + d.x0)
         .attr('y',      d => y + d.y0)
-        .attr('width',  d => d.x1 - d.x0)
-        .attr('height', d => d.y1 - d.y0)
+        .attr('width',  d => Math.max(0, d.x1 - d.x0))
+        .attr('height', d => Math.max(0, d.y1 - d.y0))
         .attr('fill',   d => d.data.color)
         .attr('rx', 2)
         .on('mousemove', function(event, d) {
