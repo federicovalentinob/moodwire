@@ -121,33 +121,59 @@ const links = <?= json_encode($links) ?>;
 
 // ── Scene setup ──────────────────────────────────────────────────────────────
 const W = window.innerWidth, H = window.innerHeight;
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(W, H);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x050a18);
 document.body.appendChild(renderer.domElement);
 
 const scene  = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(55, W/H, 0.1, 100);
-camera.position.set(0, 0, 14);
+const camera = new THREE.PerspectiveCamera(60, W/H, 0.1, 500);
+camera.position.set(0, 4, 14);
 
 // Lights
-scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-const dir = new THREE.DirectionalLight(0xffffff, 0.8);
-dir.position.set(5, 10, 5);
+scene.add(new THREE.AmbientLight(0x8899bb, 0.6));
+const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+dir.position.set(10, 20, 10);
 scene.add(dir);
 
-// Controls
+// Stars
+const starGeo = new THREE.BufferGeometry();
+const starPts = [];
+for (let i = 0; i < 3000; i++) {
+  const phi = Math.random() * Math.PI * 2;
+  const theta = Math.random() * Math.PI;
+  const r = 120 + Math.random() * 60;
+  starPts.push(r*Math.sin(theta)*Math.cos(phi), r*Math.cos(theta), r*Math.sin(theta)*Math.sin(phi));
+}
+starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPts, 3));
+scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color:0xffffff, size:0.25 })));
+
+// Sphere group — push planet down so horizon shows at screen bottom
+const sphereGroup = new THREE.Group();
+sphereGroup.position.y = -16;
+scene.add(sphereGroup);
+
+// Atmosphere halo
+const atmoGeo = new THREE.SphereGeometry(R * 1.025, 64, 64);
+const atmoMat = new THREE.MeshPhongMaterial({ color:0x1a3a6a, transparent:true, opacity:0.18, side:THREE.BackSide });
+sphereGroup.add(new THREE.Mesh(atmoGeo, atmoMat));
+
+// Controls — horizontal rotation only for fly-over feel
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.08;
-controls.enableZoom = true;
-controls.minDistance = 8;
-controls.maxDistance = 22;
-controls.autoRotate = true;
-controls.autoRotateSpeed = 0.4;
+controls.target.set(0, -16, 0);   // orbit around planet centre
+controls.enableDamping  = true;
+controls.dampingFactor  = 0.06;
+controls.enableZoom     = true;
+controls.minDistance    = 10;
+controls.maxDistance    = 30;
+controls.minPolarAngle  = 0.5;    // can't go below equator
+controls.maxPolarAngle  = 1.35;   // can't flip under planet
+controls.autoRotate     = true;
+controls.autoRotateSpeed = 0.35;
 
 // ── Globe radius ─────────────────────────────────────────────────────────────
-const R = 5;
+const R = 18;
 
 // ── Coordinate mapping ────────────────────────────────────────────────────────
 // Y (vertical): anxiety — high=top (phi≈0), low=bottom (phi≈π)
@@ -178,7 +204,7 @@ function spherePos(phi, theta) {
 
 // ── Size scale ───────────────────────────────────────────────────────────────
 const maxCount = Math.max(...nodes.map(d => d.count));
-const dotR = d => 0.12 + (d.count / maxCount) * 0.42;
+const dotR = d => 0.18 + (d.count / maxCount) * 0.55;
 
 // ── Place dots ───────────────────────────────────────────────────────────────
 const meshes = [];
@@ -200,7 +226,7 @@ nodes.forEach(d => {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.copy(pos);
   mesh.userData = d;
-  scene.add(mesh);
+  sphereGroup.add(mesh);
   meshes.push(mesh);
 });
 
@@ -219,7 +245,7 @@ links.forEach(([si, ti]) => {
     color: parseInt(nodes[si].color.replace('#',''), 16),
     opacity: 0.25, transparent: true
   });
-  scene.add(new THREE.Line(geo, mat));
+  sphereGroup.add(new THREE.Line(geo, mat));
 });
 
 // ── Raycasting for tap ───────────────────────────────────────────────────────
@@ -231,7 +257,7 @@ function onTap(cx, cy) {
   pointer.x = (cx / W) * 2 - 1;
   pointer.y = -(cy / H) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
-  const hits = raycaster.intersectObjects(meshes);
+  const hits = raycaster.intersectObjects(meshes, false);
   if (hits.length) showInfo(hits[0].object.userData);
 }
 
