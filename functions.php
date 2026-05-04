@@ -94,6 +94,25 @@ function update_feed_fetched(int $id): void {
 
 // ─── RSS Fetching ────────────────────────────────────────────────────────────
 
+function normalize_url(string $url): string {
+    $parts = parse_url($url);
+    if (empty($parts['host'])) return $url;
+
+    // Strip common tracking/noise query params
+    $strip = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term',
+              'ref','source','via','campaign','fbclid','gclid','mc_cid','mc_eid'];
+
+    if (!empty($parts['query'])) {
+        parse_str($parts['query'], $params);
+        foreach ($strip as $k) unset($params[$k]);
+        $parts['query'] = !empty($params) ? http_build_query($params) : null;
+    }
+
+    $url = ($parts['scheme'] ?? 'https') . '://' . $parts['host'] . ($parts['path'] ?? '');
+    if (!empty($parts['query'])) $url .= '?' . $parts['query'];
+    return rtrim($url, '/');
+}
+
 function fetch_rss(string $url): array {
     $ctx = stream_context_create(['http' => [
         'user_agent' => 'Mozilla/5.0 (Moodwire RSS Reader)',
@@ -109,6 +128,8 @@ function fetch_rss(string $url): array {
     $articles = [];
     $items = $feed->channel->item ?? $feed->entry ?? [];
 
+    $seen_titles = [];
+
     foreach ($items as $item) {
         $title = trim((string)($item->title ?? ''));
         $url   = trim((string)($item->link ?? $item->id ?? ''));
@@ -116,6 +137,14 @@ function fetch_rss(string $url): array {
         $pub   = trim((string)($item->published ?? $item->updated ?? $item->pubDate ?? ''));
 
         if (!$title || !$url) continue;
+
+        // Normalize URL — strip tracking params
+        $url = normalize_url($url);
+
+        // Skip duplicate titles within the same feed fetch
+        $title_key = strtolower(preg_replace('/[^a-z0-9]/i', '', $title));
+        if (isset($seen_titles[$title_key])) continue;
+        $seen_titles[$title_key] = true;
 
         // Extract image URL from media:content, media:thumbnail or enclosure
         $image_url = null;
@@ -178,6 +207,11 @@ function download_thumbnail(string $image_url): ?string {
 
 function save_article(int $feed_id, array $article): bool {
     try {
+        // Skip if same title already exists (published within last 24h)
+        $exists = db()->prepare('SELECT COUNT(*) FROM articles WHERE title = ? AND fetched_at > NOW() - INTERVAL 24 HOUR');
+        $exists->execute([$article['title']]);
+        if ($exists->fetchColumn() > 0) return false;
+
         $image_path = null;
         if (!empty($article['image_url'])) {
             $image_path = download_thumbnail($article['image_url']);
