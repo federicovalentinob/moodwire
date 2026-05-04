@@ -346,7 +346,13 @@ function get_latest_topics(): array {
     return $topics;
 }
 
+function trim_title(string $title): string {
+    $words = explode(' ', trim($title));
+    return implode(' ', array_slice($words, 0, 5));
+}
+
 function save_topic(string $title, array $bullets, float $anxiety_avg, array $article_ids, string $content_type = 'informative', ?string $category = null): int {
+    $title = trim_title($title);
     $valid_types = ['informative', 'educative', 'entertainment'];
     if (!in_array($content_type, $valid_types)) $content_type = 'informative';
     $valid_cats = ['Politics','Geopolitics','Economy','Technology','Science','Health','Society','Crime','Environment','Sports','Entertainment','Travel','Food'];
