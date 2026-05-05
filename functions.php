@@ -380,6 +380,10 @@ function get_latest_topics(): array {
     return $topics;
 }
 
+function cli_log(string $msg): void {
+    if (php_sapi_name() === 'cli') echo $msg . "\n";
+}
+
 function dedupe_bullets(array $bullets): array {
     $seen = [];
     $out  = [];
