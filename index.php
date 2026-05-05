@@ -171,8 +171,52 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 .pref-empty { font-size:11px; color:var(--muted); font-style:italic; flex-shrink:0; }
 #prefs-divider { height:1px; background:var(--border); margin:6px 12px 0; }
 
+/* ── Saved strip ─────────────────────────────────────────────────────────── */
+#saved-strip {
+  display:none; gap:6px; overflow-x:auto; padding:6px 10px 4px;
+  scrollbar-width:none; flex-shrink:0;
+  border-bottom:1px solid var(--border);
+}
+#saved-strip::-webkit-scrollbar { display:none; }
+#saved-strip.has-items { display:flex; }
+.saved-chip {
+  display:flex; align-items:center; gap:6px; flex-shrink:0;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; padding:4px 10px 4px 6px;
+  border-left:3px solid var(--border);
+  cursor:pointer; max-width:160px; transition:opacity 0.15s;
+}
+.saved-chip:active { opacity:0.7; }
+.saved-chip-title { font-size:11px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* ── Saved overlay ───────────────────────────────────────────────────────── */
+#saved-overlay {
+  position:fixed; inset:0; z-index:100; display:none;
+  background:rgba(0,0,0,0.5); backdrop-filter:blur(4px);
+  align-items:flex-end; justify-content:center;
+}
+#saved-overlay.open { display:flex; }
+#saved-overlay-card {
+  width:100%; max-height:90dvh; overflow-y:auto;
+  background:var(--bg); border-radius:20px 20px 0 0;
+  padding:8px 0 calc(var(--safe-bot) + 8px);
+  position:relative;
+}
+#saved-overlay-card .card {
+  margin:0 10px 8px; border-radius:var(--radius);
+  box-shadow:0 2px 12px rgba(0,0,0,0.1);
+}
+#overlay-handle {
+  width:36px; height:4px; background:var(--border);
+  border-radius:2px; margin:0 auto 10px;
+}
+#overlay-hint {
+  text-align:center; font-size:11px; color:var(--muted);
+  padding:0 0 8px; letter-spacing:0.3px;
+}
+
 /* ── Swipe gesture ──────────────────────────────────────────────────────── */
-.card { position:relative; cursor:pointer; user-select:none; touch-action:pan-y; }
+.card { position:relative; cursor:pointer; user-select:none; touch-action:none; }
 .card.swiping { transition:none !important; }
 .swipe-overlay {
   position:absolute; inset:0; border-radius:var(--radius);
@@ -182,6 +226,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 }
 .swipe-overlay.like    { background:rgba(22,163,74,0.25); }
 .swipe-overlay.dislike { background:rgba(220,38,38,0.25); }
+.swipe-overlay.save    { background:rgba(37,99,235,0.25); }
 
 /* ── Card hint ──────────────────────────────────────────────────────────── */
 .card-hint {
@@ -260,6 +305,18 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
     </div>
   </div>
   <div id="prefs-divider" style="display:none"></div>
+
+  <!-- Saved strip -->
+  <div id="saved-strip"></div>
+
+  <!-- Saved overlay -->
+  <div id="saved-overlay" onclick="if(event.target===this)closeSavedOverlay()">
+    <div id="saved-overlay-card">
+      <div id="overlay-handle"></div>
+      <div id="overlay-hint">Swipe left · right · up to act</div>
+      <div id="overlay-content"></div>
+    </div>
+  </div>
 
   <!-- Feed -->
   <div id="feed">
@@ -388,6 +445,7 @@ function renderCard(t, i) {
     <div class="card-hint">Tap for summary · Swipe to react</div>
     <div class="swipe-overlay like">👍</div>
     <div class="swipe-overlay dislike">👎</div>
+    <div class="swipe-overlay save">🔖</div>
   </div>`;
 }
 
@@ -484,59 +542,130 @@ function setCategory(chip) {
 // ── Swipe gestures ────────────────────────────────────────────────────────
 const SWIPE_THRESHOLD = 80;
 
-function attachSwipe(card) {
-  let startX = null, startY = null, dx = 0;
+// ── Saved cards ───────────────────────────────────────────────────────────
+const savedCards = new Map();
+let overlayActiveId = null;
 
+function addToSaved(id, card) {
+  if (savedCards.has(id)) return;
+  const title = card.querySelector('.card-title')?.textContent?.trim() ?? '';
+  const color = card.style.borderLeftColor || '#e4e4e7';
+  savedCards.set(id, { title, color, html: card.outerHTML, id });
+  renderSavedStrip();
+}
+
+function renderSavedStrip() {
+  const strip = document.getElementById('saved-strip');
+  if (!savedCards.size) { strip.classList.remove('has-items'); strip.innerHTML=''; return; }
+  strip.classList.add('has-items');
+  strip.innerHTML = [...savedCards.entries()].map(([id, d]) =>
+    `<div class="saved-chip" style="border-left-color:${d.color}" onclick="openSaved(${id})">
+       <span class="saved-chip-title">${esc(d.title)}</span>
+     </div>`
+  ).join('');
+}
+
+function openSaved(id) {
+  const d = savedCards.get(id);
+  if (!d) return;
+  overlayActiveId = id;
+  const content = document.getElementById('overlay-content');
+  content.innerHTML = d.html;
+  const card = content.querySelector('.card');
+  if (card) { card.dataset.state='0'; attachSwipeOverlay(card, id); }
+  document.getElementById('saved-overlay').classList.add('open');
+}
+
+function closeSavedOverlay() {
+  document.getElementById('saved-overlay').classList.remove('open');
+  overlayActiveId = null;
+}
+
+function removeSaved(id) {
+  savedCards.delete(id);
+  renderSavedStrip();
+  closeSavedOverlay();
+}
+
+// ── Shared swipe action ───────────────────────────────────────────────────
+async function handleSwipeAction(card, dir, onComplete) {
+  const id = parseInt(card.dataset.id);
+  if (dir === 'up') {
+    card.style.transition = 'transform 0.28s ease, opacity 0.28s ease';
+    card.style.transform = 'translateY(-110%) scale(0.85)';
+    card.style.opacity = '0';
+    setTimeout(() => { addToSaved(id, card); card.remove(); if (onComplete) onComplete(); }, 280);
+    return;
+  }
+  card.style.transition = 'transform 0.28s ease, opacity 0.28s ease';
+  card.style.transform = `translateX(${dir==='right'?'120vw':'-120vw'}) rotate(${dir==='right'?20:-20}deg)`;
+  card.style.opacity = '0';
+  setTimeout(() => { card.remove(); if (onComplete) onComplete(); }, 300);
+  const wasUntouched = parseInt(card.dataset.state) === 0;
+  if (dir === 'left' || wasUntouched) {
+    const res  = await fetch('api.php?action=swipe', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic_id:id,direction:dir})});
+    const data = await res.json();
+    renderPreferences(data.liked, data.disliked, data.countries);
+    if (data.anxiety_avg !== undefined) renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
+  }
+}
+
+function makeSwipeable(card, onSwipe) {
+  let startX=null, startY=null, dx=0, dy=0;
   card.addEventListener('touchstart', e => {
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-    dx = 0;
+    startX=e.touches[0].clientX; startY=e.touches[0].clientY; dx=0; dy=0;
     card.classList.add('swiping');
-  }, { passive: true });
-
+  }, {passive:true});
   card.addEventListener('touchmove', e => {
-    if (startX === null) return;
-    dx = e.touches[0].clientX - startX;
-    const dy = e.touches[0].clientY - startY;
-    if (Math.abs(dy) > Math.abs(dx) + 10) return; // vertical scroll wins
+    if (startX===null) return;
+    dx=e.touches[0].clientX-startX; dy=e.touches[0].clientY-startY;
     e.preventDefault();
-    card.style.transform = `translateX(${dx}px) rotate(${dx * 0.03}deg)`;
-    const like    = card.querySelector('.swipe-overlay.like');
-    const dislike = card.querySelector('.swipe-overlay.dislike');
-    like.style.opacity    = dx > 0 ? Math.min(dx / SWIPE_THRESHOLD, 1) : 0;
-    dislike.style.opacity = dx < 0 ? Math.min(-dx / SWIPE_THRESHOLD, 1) : 0;
-  }, { passive: false });
-
-  card.addEventListener('touchend', async () => {
-    card.classList.remove('swiping');
-    card.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-    if (Math.abs(dx) >= SWIPE_THRESHOLD) {
-      const dir = dx > 0 ? 'right' : 'left';
-      const id  = parseInt(card.dataset.id);
-      // Fly off screen
-      card.style.transform = `translateX(${dir === 'right' ? '120vw' : '-120vw'}) rotate(${dir === 'right' ? 20 : -20}deg)`;
-      card.style.opacity = '0';
-      setTimeout(() => card.remove(), 300);
-      // Only signal tags on swipe right if card was never opened
-      const wasUntouched = parseInt(card.dataset.state) === 0;
-      if (dir === 'left' || wasUntouched) {
-        const res = await fetch('api.php?action=swipe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ topic_id: id, direction: dir })
-        });
-        const data = await res.json();
-        renderPreferences(data.liked, data.disliked);
-        if (data.anxiety_avg !== undefined) renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
-      }
-      loadReplacement();
+    const upDom = Math.abs(dy)>Math.abs(dx) && dy<0;
+    const dnDom = Math.abs(dy)>Math.abs(dx) && dy>0;
+    if (upDom || dnDom) {
+      card.style.transform=`translateY(${dy}px)`;
+      card.querySelector('.swipe-overlay.save').style.opacity = dy<0 ? Math.min(-dy/SWIPE_THRESHOLD,1):0;
+      card.querySelector('.swipe-overlay.like').style.opacity=0;
+      card.querySelector('.swipe-overlay.dislike').style.opacity=0;
     } else {
-      card.style.transform = '';
-      card.querySelector('.swipe-overlay.like').style.opacity    = 0;
-      card.querySelector('.swipe-overlay.dislike').style.opacity = 0;
+      card.style.transform=`translateX(${dx}px) rotate(${dx*0.03}deg)`;
+      card.querySelector('.swipe-overlay.like').style.opacity=dx>0?Math.min(dx/SWIPE_THRESHOLD,1):0;
+      card.querySelector('.swipe-overlay.dislike').style.opacity=dx<0?Math.min(-dx/SWIPE_THRESHOLD,1):0;
+      card.querySelector('.swipe-overlay.save').style.opacity=0;
     }
-    startX = null;
-  }, { passive: true });
+  }, {passive:false});
+  card.addEventListener('touchend', () => {
+    card.classList.remove('swiping');
+    const isUp   = dy < -SWIPE_THRESHOLD && Math.abs(dy)>Math.abs(dx);
+    const isDown = dy >  SWIPE_THRESHOLD && Math.abs(dy)>Math.abs(dx);
+    const isHoriz= Math.abs(dx)>=SWIPE_THRESHOLD && Math.abs(dx)>=Math.abs(dy);
+    if (isUp)         onSwipe('up');
+    else if (isDown)  onSwipe('down');
+    else if (isHoriz) onSwipe(dx>0?'right':'left');
+    else {
+      card.style.transform='';
+      ['like','dislike','save'].forEach(c=>card.querySelector('.swipe-overlay.'+c).style.opacity=0);
+    }
+    startX=null;
+  }, {passive:true});
+}
+
+function attachSwipe(card) {
+  makeSwipeable(card, dir => {
+    if (dir==='down') return; // ignore down swipe on main cards
+    handleSwipeAction(card, dir, () => loadReplacement());
+    if (dir!=='up') loadReplacement();
+  });
+}
+
+function attachSwipeOverlay(card, savedId) {
+  makeSwipeable(card, dir => {
+    if (dir==='down') { closeSavedOverlay(); card.style.transform=''; return; }
+    if (dir==='up')   { closeSavedOverlay(); return; } // keep in strip
+    // left/right: act and remove from saved
+    handleSwipeAction(card, dir, () => removeSaved(savedId));
+    setTimeout(() => removeSaved(savedId), 320);
+  });
 }
 
 // ── Preferences ───────────────────────────────────────────────────────────
