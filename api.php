@@ -115,19 +115,32 @@ case 'swipe':
     if ($meta['category'])     $tags[] = strtolower($meta['category']);
     if ($meta['content_type']) $tags[] = $meta['content_type'];
 
-    $list  = $direction === 'right' ? 'liked'    : 'disliked';
-    $other = $direction === 'right' ? 'disliked' : 'liked';
+    $list = $direction === 'right' ? 'liked' : 'disliked';
 
     foreach ($tags as $tag) {
         $tag = trim(strtolower($tag));
         if (!$tag) continue;
-        // Remove from the opposite list
-        unset($_SESSION[$other][$tag]);
-        // Increment count in this list
         $_SESSION[$list][$tag] = ($_SESSION[$list][$tag] ?? 0) + 1;
     }
 
-    // Sort each list by count desc, keep top 30
+    // Simplify: where a tag exists on both sides, subtract the minimum from both
+    $all_tags = array_unique(array_merge(
+        array_keys($_SESSION['liked']),
+        array_keys($_SESSION['disliked'])
+    ));
+    foreach ($all_tags as $tag) {
+        $l = $_SESSION['liked'][$tag]    ?? 0;
+        $d = $_SESSION['disliked'][$tag] ?? 0;
+        if ($l > 0 && $d > 0) {
+            $min = min($l, $d);
+            $_SESSION['liked'][$tag]    = $l - $min;
+            $_SESSION['disliked'][$tag] = $d - $min;
+        }
+        if (($_SESSION['liked'][$tag]    ?? 0) === 0) unset($_SESSION['liked'][$tag]);
+        if (($_SESSION['disliked'][$tag] ?? 0) === 0) unset($_SESSION['disliked'][$tag]);
+    }
+
+    // Sort by count desc, keep top 30
     arsort($_SESSION['liked']);
     arsort($_SESSION['disliked']);
     $_SESSION['liked']    = array_slice($_SESSION['liked'],    0, 30, true);
