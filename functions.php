@@ -432,8 +432,7 @@ function save_topic(string $title, array $bullets, float $anxiety_avg, array $ar
 function regenerate_stale_bullets(): void {
     require_once __DIR__ . '/config.php';
 
-    $system  = 'You are a JSON API. Output only a raw valid JSON array. No markdown, no citations, no extra text.';
-    $prompt_tpl = get_prompt('bullets');
+    $system = 'You are a JSON API. Output only a raw valid JSON array. No markdown, no citations, no extra text.';
 
     // Find topics whose bullet count exceeds their current article count
     $topics = db()->query('
@@ -446,34 +445,53 @@ function regenerate_stale_bullets(): void {
         HAVING bullet_count > article_count OR article_count = 0
     ')->fetchAll();
 
+    $stale = [];
     foreach ($topics as $topic) {
         if ((int)$topic['article_count'] === 0) continue;
-
         $art_titles = db()->query(
             "SELECT a.title FROM articles a
              JOIN article_topics ato ON ato.article_id = a.id
              WHERE ato.topic_id = {$topic['id']}"
         )->fetchAll(PDO::FETCH_COLUMN);
+        $stale[] = [
+            'id'          => $topic['id'],
+            'title'       => $topic['title'],
+            'art_titles'  => $art_titles,
+            'max_b'       => min(5, max(2, (int)$topic['article_count'])),
+        ];
+    }
 
-        $art_list  = implode("\n", array_map(fn($t) => "- {$t}", $art_titles));
-        $max_b     = min(5, max(2, (int)$topic['article_count']));
-        $prompt    = str_replace(
-            ['{{topic}}', '{{articles}}', '{{num_bullets}}'],
-            [$topic['title'], $art_list, (string)$max_b],
-            $prompt_tpl
-        );
+    if (empty($stale)) return;
 
-        $raw     = call_perplexity($prompt, $system);
-        $bullets = json_decode(extract_json($raw), true);
-        if (!is_array($bullets) || count($bullets) < 1) continue;
+    // Build one batch prompt for all stale topics
+    $topics_str = '';
+    foreach ($stale as $i => $t) {
+        $art_list    = implode("\n", array_map(fn($a) => "- {$a}", $t['art_titles']));
+        $topics_str .= "TOPIC_ID:{$i} \"{$t['title']}\" ({$t['max_b']} bullets)\n{$art_list}\n\n";
+    }
 
-        $bullets = array_map(fn($b) => trim($b), array_slice(dedupe_bullets($bullets), 0, $max_b));
+    $batch_prompt = get_prompt('bullets_batch');
+    $batch_prompt = str_replace('{{topics}}', $topics_str, $batch_prompt);
+    $raw          = call_perplexity($batch_prompt, $system);
+    $batch_result = json_decode(extract_json($raw), true);
 
-        db()->prepare('DELETE FROM topic_bullets WHERE topic_id = ?')->execute([$topic['id']]);
+    $bullets_by_idx = [];
+    if (is_array($batch_result)) {
+        foreach ($batch_result as $r) {
+            if (isset($r['id'], $r['bullets'])) $bullets_by_idx[(int)$r['id']] = $r['bullets'];
+        }
+    }
+
+    foreach ($stale as $i => $t) {
+        $bullets = $bullets_by_idx[$i] ?? [];
+        if (empty($bullets)) continue;
+        $bullets = array_map(fn($b) => trim($b), array_slice(dedupe_bullets($bullets), 0, $t['max_b']));
+
+        db()->prepare('DELETE FROM topic_bullets WHERE topic_id = ?')->execute([$t['id']]);
         $st = db()->prepare('INSERT INTO topic_bullets (topic_id, bullet, display_order) VALUES (?, ?, ?)');
-        foreach ($bullets as $i => $b) $st->execute([$topic['id'], $b, $i]);
+        foreach ($bullets as $j => $b) $st->execute([$t['id'], $b, $j]);
 
-        log_action('fetch', 'success', "Regenerated bullets for topic [{$topic['id']}] {$topic['title']}");
+        log_action('fetch', 'success', "Regenerated bullets for topic [{$t['id']}] {$t['title']}");
     }
 }
 
