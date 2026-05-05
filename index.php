@@ -60,10 +60,9 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 
 /* ── Feed ───────────────────────────────────────────────────────────────── */
 #feed {
-  flex:1; overflow-y:auto; padding:6px 10px 10px;
-  -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  flex:1; overflow:hidden; padding:6px 10px 10px;
+  touch-action:none;
 }
-#feed::-webkit-scrollbar { display:none; }
 
 /* ── Card ───────────────────────────────────────────────────────────────── */
 .card {
