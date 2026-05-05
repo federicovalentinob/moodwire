@@ -450,7 +450,7 @@ async function signal(tagsOrId, direction = 'right', source = 'swipe', anxiety =
     body: JSON.stringify(body)
   });
   const data = await res.json();
-  if (data.liked !== undefined) renderPreferences(data.liked, data.disliked);
+  if (data.liked !== undefined) renderPreferences(data.liked, data.disliked, data.countries);
   if (data.anxiety_avg !== undefined) renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
 }
 
@@ -718,7 +718,7 @@ async function removeTag(tag, list) {
     body: JSON.stringify({ tag, list })
   });
   const data = await res.json();
-  renderPreferences(data.liked, data.disliked);
+  renderPreferences(data.liked, data.disliked, data.countries);
   if (data.anxiety_avg !== undefined) renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
 }
 
@@ -730,7 +730,7 @@ async function clearPreferences() {
 async function loadPreferences() {
   const res  = await fetch('api.php?action=preferences');
   const data = await res.json();
-  renderPreferences(data.liked, data.disliked);
+  renderPreferences(data.liked, data.disliked, data.countries);
   renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
 }
 
