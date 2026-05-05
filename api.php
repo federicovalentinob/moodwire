@@ -7,6 +7,7 @@ if (!isset($_SESSION['disliked'])) $_SESSION['disliked'] = []; // {tag => count}
 if (!isset($_SESSION['signaled']))       $_SESSION['signaled']       = [];
 if (!isset($_SESSION['anxiety_total']))  $_SESSION['anxiety_total']  = 0.0;
 if (!isset($_SESSION['anxiety_count']))  $_SESSION['anxiety_count']  = 0;
+if (!isset($_SESSION['countries']))      $_SESSION['countries']      = []; // {CC => count}
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
@@ -95,9 +96,15 @@ case 'topics':
                 $score += ($liked[$tag]    ?? 0);
                 $score -= ($disliked[$tag] ?? 0) * 0.8;
             }
-            // Also score by category/type
+            // Score by category
             $score += ($liked[strtolower($t['category'] ?? '')] ?? 0);
             $score -= ($disliked[strtolower($t['category'] ?? '')] ?? 0) * 0.8;
+            // Score by country interest
+            $ctry_tags = array_filter($topic_tags[$t['id']] ?? [], fn($tg) => str_starts_with($tg, 'country:'));
+            foreach ($ctry_tags as $ct) {
+                $cc = strtoupper(substr($ct, 8));
+                $score += ($_SESSION['countries'][$cc] ?? 0) * 0.6;
+            }
             $t['_score'] = $score;
         }
         unset($t);
@@ -195,7 +202,7 @@ case 'swipe':
     $anxiety = isset($body['anxiety']) ? (float)$body['anxiety'] : null;
 
     if (in_array($signal_key, $_SESSION['signaled'])) {
-        json_out(['ok' => true, 'skipped' => true, 'liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked'],
+        json_out(['ok' => true, 'skipped' => true, 'liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked'], 'countries' => $_SESSION['countries'],
                   'anxiety_avg' => $_SESSION['anxiety_count'] > 0 ? round($_SESSION['anxiety_total'] / $_SESSION['anxiety_count'], 2) : null,
                   'anxiety_count' => $_SESSION['anxiety_count']]);
     }
@@ -230,6 +237,12 @@ case 'swipe':
     foreach ($tags as $tag) {
         $tag = trim(strtolower($tag));
         if (!$tag) continue;
+        // Country tags go into their own list (only on swipe/tap right)
+        if (str_starts_with($tag, 'country:') && $direction === 'right') {
+            $cc = strtoupper(substr($tag, 8));
+            if (strlen($cc) === 2) $_SESSION['countries'][$cc] = ($_SESSION['countries'][$cc] ?? 0) + 1;
+            continue;
+        }
         $_SESSION[$list][$tag] = ($_SESSION[$list][$tag] ?? 0) + 1;
     }
 
@@ -256,13 +269,13 @@ case 'swipe':
     $_SESSION['liked']    = array_slice($_SESSION['liked'],    0, 30, true);
     $_SESSION['disliked'] = array_slice($_SESSION['disliked'], 0, 30, true);
 
-    json_out(['ok' => true, 'liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked'],
+    json_out(['ok' => true, 'liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked'], 'countries' => $_SESSION['countries'],
               'anxiety_avg'   => $_SESSION['anxiety_count'] > 0 ? round($_SESSION['anxiety_total'] / $_SESSION['anxiety_count'], 2) : null,
               'anxiety_count' => $_SESSION['anxiety_count']]);
 
 // ── Preferences ───────────────────────────────────────────────────────────
 case 'preferences':
-    json_out(['liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked'],
+    json_out(['liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked'], 'countries' => $_SESSION['countries'],
               'anxiety_avg'   => $_SESSION['anxiety_count'] > 0 ? round($_SESSION['anxiety_total'] / $_SESSION['anxiety_count'], 2) : null,
               'anxiety_count' => $_SESSION['anxiety_count']]);
 
@@ -270,16 +283,16 @@ case 'preferences':
 case 'remove_tag':
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     $tag  = trim(strtolower($body['tag'] ?? ''));
-    $list = $body['list'] ?? ''; // 'liked' or 'disliked'
-    if ($tag && in_array($list, ['liked','disliked'])) {
-        unset($_SESSION[$list][$tag]);
-    }
-    json_out(['liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked'],
+    $list = $body['list'] ?? '';
+    if ($tag && $list === 'countries') { unset($_SESSION['countries'][strtoupper($tag)]); }
+    elseif ($tag && in_array($list, ['liked','disliked'])) { unset($_SESSION[$list][$tag]); }
+
+    json_out(['liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked'], 'countries' => $_SESSION['countries'],
               'anxiety_avg'   => $_SESSION['anxiety_count'] > 0 ? round($_SESSION['anxiety_total'] / $_SESSION['anxiety_count'], 2) : null,
               'anxiety_count' => $_SESSION['anxiety_count']]);
 
 case 'clear_preferences':
-    $_SESSION['liked'] = $_SESSION['disliked'] = $_SESSION['signaled'] = [];
+    $_SESSION['liked'] = $_SESSION['disliked'] = $_SESSION['signaled'] = $_SESSION['countries'] = [];
     $_SESSION['anxiety_total'] = 0.0;
     $_SESSION['anxiety_count'] = 0;
     json_out(['ok' => true]);

@@ -254,6 +254,10 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
       <span class="pref-label dislike">✗</span>
       <div class="pref-tags" id="disliked-tags"></div>
     </div>
+    <div class="pref-row" id="country-row" style="display:none">
+      <span class="pref-label" style="color:#6b7280">🌍</span>
+      <div class="pref-tags" id="country-tags"></div>
+    </div>
   </div>
   <div id="prefs-divider" style="display:none"></div>
 
@@ -536,8 +540,12 @@ function attachSwipe(card) {
 }
 
 // ── Preferences ───────────────────────────────────────────────────────────
-function renderPreferences(liked, disliked) {
-  const hasPrefs = Object.keys(liked ?? {}).length || Object.keys(disliked ?? {}).length;
+function flag(cc) {
+  return cc.toUpperCase().split('').map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('');
+}
+
+function renderPreferences(liked, disliked, countries) {
+  const hasPrefs = Object.keys(liked ?? {}).length || Object.keys(disliked ?? {}).length || Object.keys(countries ?? {}).length;
   document.getElementById('prefs').style.display         = hasPrefs ? '' : 'none';
   document.getElementById('prefs-divider').style.display = hasPrefs ? '' : 'none';
   document.getElementById('clear-btn').style.display     = hasPrefs ? '' : 'none';
@@ -554,6 +562,14 @@ function renderPreferences(liked, disliked) {
     dislikedEntries.length ? dislikedEntries.map(([t,c]) =>
       `<span class="pref-tag dislike">${esc(t)}${c>1?` <b>${c}</b>`:''}<button class="tag-del" onclick="removeTag('${esc(t)}','disliked')">×</button></span>`).join('')
     : '<span class="pref-empty">swipe left to add</span>';
+
+  const countryEntries = Object.entries(countries ?? {}).sort((a,b) => b[1]-a[1]).slice(0,15);
+  const countryRow = document.getElementById('country-row');
+  countryRow.style.display = countryEntries.length ? '' : 'none';
+  document.getElementById('country-tags').innerHTML =
+    countryEntries.map(([cc,c]) =>
+      `<span class="pref-tag like" style="background:rgba(37,99,235,0.1);color:#2563eb;border-color:rgba(37,99,235,0.3)">${flag(cc)} ${cc}${c>1?` <b>${c}</b>`:''}<button class="tag-del" onclick="removeTag('${esc(cc)}','countries')">×</button></span>`
+    ).join('');
 }
 
 function renderAnxietyMeter(avg, count) {
@@ -581,7 +597,7 @@ async function removeTag(tag, list) {
 
 async function clearPreferences() {
   await fetch('api.php?action=clear_preferences', { method: 'POST' });
-  renderPreferences({}, {});
+  renderPreferences({}, {}, {});
 }
 
 async function loadPreferences() {
