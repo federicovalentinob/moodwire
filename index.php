@@ -146,6 +146,18 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 .article-src   { font-size:11px; color:var(--muted); margin-top:2px; }
 .article-anx   { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
 
+/* ── Card hint ──────────────────────────────────────────────────────────── */
+.card-hint {
+  padding:8px 14px 10px; font-size:11px; color:var(--muted);
+  text-align:right; letter-spacing:0.3px; text-transform:uppercase;
+}
+.articles-header {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:10px 14px 4px; font-size:12px; font-weight:700;
+  color:var(--muted); border-top:1px solid var(--border); text-transform:uppercase;
+  letter-spacing:0.5px;
+}
+
 /* ── Empty / Loading ─────────────────────────────────────────────────────── */
 #empty  { text-align:center; padding:60px 20px; color:var(--muted); font-size:15px; }
 #loader { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
@@ -253,7 +265,9 @@ function renderCard(t, i) {
   }).join('');
 
   return `
-  <div class="card" style="border-left-color:${t.anxiety_color};animation-delay:${delay}ms">
+  <div class="card" data-id="${t.id}" data-state="0"
+       style="border-left-color:${t.anxiety_color};animation-delay:${delay}ms"
+       onclick="tapCard(${t.id}, this)">
     <div class="card-header">
       <div class="card-meta">
         ${t.category ? `<span class="badge badge-cat">${esc(t.category)}</span>` : ''}
@@ -265,23 +279,36 @@ function renderCard(t, i) {
 
     <div class="card-title">${esc(t.title)}</div>
 
-    <ul class="card-bullets">${bullets}</ul>
+    <ul class="card-bullets card-section" style="display:none">${bullets}</ul>
 
-    ${articles ? `
-    <button class="articles-toggle" data-id="${t.id}" onclick="toggleArticles(${t.id}, this)">
-      <span class="arrow">▶</span> Articles
-      <span class="count-badge">${t.articles.length}</span>
-    </button>
-    <div class="articles-list" data-id="${t.id}">${articles}</div>
-    ` : ''}
+    <div class="articles-section card-section" style="display:none">
+      <div class="articles-header">
+        <span>Articles</span>
+        <span class="count-badge">${t.articles.length}</span>
+      </div>
+      ${articles}
+    </div>
+
+    <div class="card-hint">Tap for summary</div>
   </div>`;
 }
 
-function toggleArticles(id, btn) {
-  const list = document.querySelector(`.articles-list[data-id="${id}"]`);
-  const open = list.classList.toggle('open');
-  btn.classList.toggle('open', open);
-  if (open) expandedCards.add(id); else expandedCards.delete(id);
+// 3-state tap: 0=title only → 1=+bullets → 2=+articles → 0
+function tapCard(id, card) {
+  // Don't collapse if user tapped a link
+  if (event.target.closest('a')) return;
+  const state    = parseInt(card.dataset.state);
+  const next     = (state + 1) % 3;
+  const bullets  = card.querySelector('.card-bullets');
+  const articles = card.querySelector('.articles-section');
+  const hint     = card.querySelector('.card-hint');
+
+  card.dataset.state = next;
+  bullets.style.display  = next >= 1 ? '' : 'none';
+  articles.style.display = next >= 2 ? '' : 'none';
+  hint.textContent = next === 0 ? 'Tap for summary'
+                   : next === 1 ? 'Tap for articles'
+                   : 'Tap to collapse';
 }
 
 function esc(s) {
