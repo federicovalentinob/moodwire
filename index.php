@@ -358,11 +358,16 @@ async function signal(tagsOrId, direction = 'right') {
   if (data.liked !== undefined) renderPreferences(data.liked, data.disliked);
 }
 
-// Article click — signal article tags then navigate
+// Article click — signal article tags once, then navigate
 function articleClick(e, el) {
   e.preventDefault();
-  const tags = JSON.parse(el.dataset.tags ?? '[]');
-  signal(tags, 'right').then(() => window.open(el.href, '_blank'));
+  if (!el.dataset.signaled) {
+    el.dataset.signaled = '1';
+    const tags = JSON.parse(el.dataset.tags ?? '[]');
+    signal(tags, 'right').then(() => window.open(el.href, '_blank'));
+  } else {
+    window.open(el.href, '_blank');
+  }
 }
 
 // 3-state tap: 0=title only → 1=+bullets → 2=+articles → 0
@@ -372,8 +377,11 @@ function tapCard(id, card) {
   const state    = parseInt(card.dataset.state);
   const next     = (state + 1) % 3;
 
-  // First tap = interest signal for the topic
-  if (state === 0) signal(id, 'right');
+  // First tap = interest signal for the topic (once only)
+  if (state === 0 && !card.dataset.signaled) {
+    card.dataset.signaled = '1';
+    signal(id, 'right');
+  }
   const bullets  = card.querySelector('.card-bullets');
   const articles = card.querySelector('.articles-section');
   const hint     = card.querySelector('.card-hint');

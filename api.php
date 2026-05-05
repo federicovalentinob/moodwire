@@ -4,6 +4,7 @@ require_once __DIR__ . '/functions.php';
 session_start();
 if (!isset($_SESSION['liked']))    $_SESSION['liked']    = []; // {tag => count}
 if (!isset($_SESSION['disliked'])) $_SESSION['disliked'] = []; // {tag => count}
+if (!isset($_SESSION['signaled'])) $_SESSION['signaled'] = []; // set of "topic:id" or "article:url"
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
@@ -100,6 +101,16 @@ case 'swipe':
 
     if (!$topic_id || !in_array($direction, ['right','left'])) err('Invalid swipe');
 
+    // Build a signal key to deduplicate
+    $signal_key = !empty($body['tags'])
+        ? 'article:' . md5(implode(',', (array)$body['tags']))
+        : 'topic:' . $topic_id . ':' . $direction;
+
+    if (in_array($signal_key, $_SESSION['signaled'])) {
+        json_out(['ok' => true, 'skipped' => true, 'liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked']]);
+    }
+    $_SESSION['signaled'][] = $signal_key;
+
     // Accept either a topic_id or a raw tags array
     if (!empty($body['tags']) && is_array($body['tags'])) {
         $tags = array_filter(array_map('trim', $body['tags']));
@@ -157,7 +168,7 @@ case 'preferences':
 
 // ── Clear preferences ─────────────────────────────────────────────────────
 case 'clear_preferences':
-    $_SESSION['liked'] = $_SESSION['disliked'] = [];
+    $_SESSION['liked'] = $_SESSION['disliked'] = $_SESSION['signaled'] = [];
     json_out(['ok' => true]);
 
 default:
