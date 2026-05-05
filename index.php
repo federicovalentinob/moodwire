@@ -161,8 +161,13 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 .pref-tags { display:flex; gap:4px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; }
 .pref-tags::-webkit-scrollbar { display:none; }
 .pref-tag { font-size:11px; padding:2px 7px; border-radius:10px; font-weight:600; flex-shrink:0; }
-.pref-tag.like    { background:rgba(22,163,74,0.15);  color:var(--low);  border:1px solid rgba(22,163,74,0.3); }
-.pref-tag.dislike { background:rgba(220,38,38,0.15); color:var(--high); border:1px solid rgba(220,38,38,0.3); }
+.pref-tag.like    { background:rgba(22,163,74,0.12);  color:var(--low);  border:1px solid rgba(22,163,74,0.3); }
+.pref-tag.dislike { background:rgba(220,38,38,0.12); color:var(--high); border:1px solid rgba(220,38,38,0.3); }
+.tag-del {
+  background:none; border:none; cursor:pointer; font-size:13px; line-height:1;
+  padding:0 0 0 4px; opacity:0.5; color:inherit; vertical-align:middle;
+}
+.tag-del:hover { opacity:1; }
 .pref-empty { font-size:11px; color:var(--muted); font-style:italic; flex-shrink:0; }
 #prefs-divider { height:1px; background:var(--border); margin:6px 12px 0; }
 
@@ -542,12 +547,12 @@ function renderPreferences(liked, disliked) {
 
   document.getElementById('liked-tags').innerHTML =
     likedEntries.length ? likedEntries.map(([t,c]) =>
-      `<span class="pref-tag like">${esc(t)}${c>1?` <b>${c}</b>`:''}</span>`).join('')
+      `<span class="pref-tag like">${esc(t)}${c>1?` <b>${c}</b>`:''}<button class="tag-del" onclick="removeTag('${esc(t)}','liked')">×</button></span>`).join('')
     : '<span class="pref-empty">swipe right to add</span>';
 
   document.getElementById('disliked-tags').innerHTML =
     dislikedEntries.length ? dislikedEntries.map(([t,c]) =>
-      `<span class="pref-tag dislike">${esc(t)}${c>1?` <b>${c}</b>`:''}</span>`).join('')
+      `<span class="pref-tag dislike">${esc(t)}${c>1?` <b>${c}</b>`:''}<button class="tag-del" onclick="removeTag('${esc(t)}','disliked')">×</button></span>`).join('')
     : '<span class="pref-empty">swipe left to add</span>';
 }
 
@@ -561,6 +566,17 @@ function renderAnxietyMeter(avg, count) {
   document.getElementById('anxiety-bar').style.background = color;
   document.getElementById('anxiety-val').style.color      = color;
   document.getElementById('anxiety-val').textContent      = avg.toFixed(1);
+}
+
+async function removeTag(tag, list) {
+  const res  = await fetch('api.php?action=remove_tag', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tag, list })
+  });
+  const data = await res.json();
+  renderPreferences(data.liked, data.disliked);
+  if (data.anxiety_avg !== undefined) renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
 }
 
 async function clearPreferences() {

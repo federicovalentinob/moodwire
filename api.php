@@ -267,6 +267,17 @@ case 'preferences':
               'anxiety_count' => $_SESSION['anxiety_count']]);
 
 // ── Clear preferences ─────────────────────────────────────────────────────
+case 'remove_tag':
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $tag  = trim(strtolower($body['tag'] ?? ''));
+    $list = $body['list'] ?? ''; // 'liked' or 'disliked'
+    if ($tag && in_array($list, ['liked','disliked'])) {
+        unset($_SESSION[$list][$tag]);
+    }
+    json_out(['liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked'],
+              'anxiety_avg'   => $_SESSION['anxiety_count'] > 0 ? round($_SESSION['anxiety_total'] / $_SESSION['anxiety_count'], 2) : null,
+              'anxiety_count' => $_SESSION['anxiety_count']]);
+
 case 'clear_preferences':
     $_SESSION['liked'] = $_SESSION['disliked'] = $_SESSION['signaled'] = [];
     $_SESSION['anxiety_total'] = 0.0;
