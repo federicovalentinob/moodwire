@@ -368,16 +368,16 @@ async function signal(tagsOrId, direction = 'right', source = 'swipe', anxiety =
 }
 
 // Article click — signal article tags once, then navigate
-function articleClick(e, el) {
+async function articleClick(e, el) {
   e.preventDefault();
+  const url = el.href;
   if (!el.dataset.signaled) {
     el.dataset.signaled = '1';
     const tags    = JSON.parse(el.dataset.tags ?? '[]');
     const anxiety = parseFloat(el.dataset.anxiety ?? 5);
-    signal(tags, 'right', 'click', anxiety).then(() => window.open(el.href, '_blank'));
-  } else {
-    window.open(el.href, '_blank');
+    await signal(tags, 'right', 'click', anxiety);
   }
+  window.location.href = url;
 }
 
 // 3-state tap: 0=title only → 1=+bullets → 2=+articles → 0
