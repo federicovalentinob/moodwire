@@ -546,11 +546,11 @@ const SWIPE_THRESHOLD = 80;
 const savedCards = new Map();
 let overlayActiveId = null;
 
-function addToSaved(id, card) {
+function addToSaved(id, card, html) {
   if (savedCards.has(id)) return;
   const title = card.querySelector('.card-title')?.textContent?.trim() ?? '';
   const color = card.style.borderLeftColor || '#e4e4e7';
-  savedCards.set(id, { title, color, html: card.outerHTML, id });
+  savedCards.set(id, { title, color, html: html ?? card.outerHTML, id });
   renderSavedStrip();
 }
 
@@ -572,7 +572,11 @@ function openSaved(id) {
   const content = document.getElementById('overlay-content');
   content.innerHTML = d.html;
   const card = content.querySelector('.card');
-  if (card) { card.dataset.state='0'; attachSwipeOverlay(card, id); }
+  if (card) {
+    card.dataset.state='0';
+    card.style.transform=''; card.style.opacity='1'; card.style.transition='';
+    attachSwipeOverlay(card, id);
+  }
   document.getElementById('saved-overlay').classList.add('open');
 }
 
@@ -591,10 +595,11 @@ function removeSaved(id) {
 async function handleSwipeAction(card, dir, onComplete) {
   const id = parseInt(card.dataset.id);
   if (dir === 'up') {
+    const savedHtml = card.outerHTML; // capture BEFORE animation
     card.style.transition = 'transform 0.28s ease, opacity 0.28s ease';
     card.style.transform = 'translateY(-110%) scale(0.85)';
     card.style.opacity = '0';
-    setTimeout(() => { addToSaved(id, card); card.remove(); if (onComplete) onComplete(); }, 280);
+    setTimeout(() => { addToSaved(id, card, savedHtml); card.remove(); if (onComplete) onComplete(); }, 280);
     return;
   }
   card.style.transition = 'transform 0.28s ease, opacity 0.28s ease';
