@@ -146,6 +146,39 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 .article-src   { font-size:11px; color:var(--muted); margin-top:2px; }
 .article-anx   { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
 
+/* ── Preferences bar ────────────────────────────────────────────────────── */
+#prefs {
+  padding:10px 16px 0; display:flex; flex-direction:column; gap:6px;
+}
+.pref-row { display:flex; align-items:flex-start; gap:8px; }
+.pref-label {
+  font-size:10px; font-weight:800; text-transform:uppercase;
+  letter-spacing:0.5px; padding-top:3px; flex-shrink:0; width:20px;
+}
+.pref-label.like    { color:var(--low); }
+.pref-label.dislike { color:var(--high); }
+.pref-tags { display:flex; flex-wrap:wrap; gap:4px; }
+.pref-tag {
+  font-size:11px; padding:2px 8px; border-radius:10px;
+  font-weight:600; cursor:pointer;
+}
+.pref-tag.like    { background:rgba(22,163,74,0.15);  color:var(--low);  border:1px solid rgba(22,163,74,0.3); }
+.pref-tag.dislike { background:rgba(220,38,38,0.15); color:var(--high); border:1px solid rgba(220,38,38,0.3); }
+.pref-empty { font-size:11px; color:var(--muted); font-style:italic; }
+#prefs-divider { height:1px; background:var(--border); margin:10px 16px 0; }
+
+/* ── Swipe gesture ──────────────────────────────────────────────────────── */
+.card { position:relative; cursor:pointer; user-select:none; touch-action:pan-y; }
+.card.swiping { transition:none !important; }
+.swipe-overlay {
+  position:absolute; inset:0; border-radius:var(--radius);
+  display:flex; align-items:center; justify-content:center;
+  font-size:36px; opacity:0; pointer-events:none; transition:opacity 0.1s;
+  font-weight:900;
+}
+.swipe-overlay.like    { background:rgba(22,163,74,0.25); }
+.swipe-overlay.dislike { background:rgba(220,38,38,0.25); }
+
 /* ── Card hint ──────────────────────────────────────────────────────────── */
 .card-hint {
   padding:8px 14px 10px; font-size:11px; color:var(--muted);
@@ -194,6 +227,19 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
       <div id="cat-chips"></div>
     </div>
   </div>
+
+  <!-- Preferences -->
+  <div id="prefs" style="display:none">
+    <div class="pref-row">
+      <span class="pref-label like">✓</span>
+      <div class="pref-tags" id="liked-tags"></div>
+    </div>
+    <div class="pref-row">
+      <span class="pref-label dislike">✗</span>
+      <div class="pref-tags" id="disliked-tags"></div>
+    </div>
+  </div>
+  <div id="prefs-divider" style="display:none"></div>
 
   <!-- Feed -->
   <div id="feed">
@@ -289,7 +335,9 @@ function renderCard(t, i) {
       ${articles}
     </div>
 
-    <div class="card-hint">Tap for summary</div>
+    <div class="card-hint">Tap for summary · Swipe to react</div>
+    <div class="swipe-overlay like">👍</div>
+    <div class="swipe-overlay dislike">👎</div>
   </div>`;
 }
 
@@ -347,8 +395,91 @@ function setCategory(chip) {
   loadTopics();
 }
 
+// ── Swipe gestures ────────────────────────────────────────────────────────
+const SWIPE_THRESHOLD = 80;
+
+function attachSwipe(card) {
+  let startX = null, startY = null, dx = 0;
+
+  card.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    dx = 0;
+    card.classList.add('swiping');
+  }, { passive: true });
+
+  card.addEventListener('touchmove', e => {
+    if (startX === null) return;
+    dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (Math.abs(dy) > Math.abs(dx) + 10) return; // vertical scroll wins
+    e.preventDefault();
+    card.style.transform = `translateX(${dx}px) rotate(${dx * 0.03}deg)`;
+    const like    = card.querySelector('.swipe-overlay.like');
+    const dislike = card.querySelector('.swipe-overlay.dislike');
+    like.style.opacity    = dx > 0 ? Math.min(dx / SWIPE_THRESHOLD, 1) : 0;
+    dislike.style.opacity = dx < 0 ? Math.min(-dx / SWIPE_THRESHOLD, 1) : 0;
+  }, { passive: false });
+
+  card.addEventListener('touchend', async () => {
+    card.classList.remove('swiping');
+    card.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+    if (Math.abs(dx) >= SWIPE_THRESHOLD) {
+      const dir = dx > 0 ? 'right' : 'left';
+      const id  = parseInt(card.dataset.id);
+      // Fly off screen
+      card.style.transform = `translateX(${dir === 'right' ? '120vw' : '-120vw'}) rotate(${dir === 'right' ? 20 : -20}deg)`;
+      card.style.opacity = '0';
+      setTimeout(() => card.remove(), 300);
+      const res = await fetch('api.php?action=swipe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic_id: id, direction: dir })
+      });
+      const data = await res.json();
+      renderPreferences(data.liked, data.disliked);
+    } else {
+      card.style.transform = '';
+      card.querySelector('.swipe-overlay.like').style.opacity    = 0;
+      card.querySelector('.swipe-overlay.dislike').style.opacity = 0;
+    }
+    startX = null;
+  }, { passive: true });
+}
+
+// ── Preferences ───────────────────────────────────────────────────────────
+function renderPreferences(liked, disliked) {
+  const hasPrefs = liked.length || disliked.length;
+  document.getElementById('prefs').style.display         = hasPrefs ? '' : 'none';
+  document.getElementById('prefs-divider').style.display = hasPrefs ? '' : 'none';
+
+  document.getElementById('liked-tags').innerHTML =
+    liked.length ? liked.slice(-15).reverse().map(t =>
+      `<span class="pref-tag like">${esc(t)}</span>`).join('')
+    : '<span class="pref-empty">swipe right to add</span>';
+
+  document.getElementById('disliked-tags').innerHTML =
+    disliked.length ? disliked.slice(-15).reverse().map(t =>
+      `<span class="pref-tag dislike">${esc(t)}</span>`).join('')
+    : '<span class="pref-empty">swipe left to add</span>';
+}
+
+async function loadPreferences() {
+  const res  = await fetch('api.php?action=preferences');
+  const data = await res.json();
+  renderPreferences(data.liked, data.disliked);
+}
+
+// Attach swipe after rendering
+const _origRenderFeed = renderFeed;
+renderFeed = function(topics) {
+  _origRenderFeed(topics);
+  document.querySelectorAll('.card').forEach(attachSwipe);
+};
+
 // ── Init ──────────────────────────────────────────────────────────────────
 loadStats();
+loadPreferences();
 loadTopics();
 </script>
 </body>

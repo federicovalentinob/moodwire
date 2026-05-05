@@ -1,6 +1,10 @@
 <?php
 require_once __DIR__ . '/functions.php';
 
+session_start();
+if (!isset($_SESSION['liked']))    $_SESSION['liked']    = [];
+if (!isset($_SESSION['disliked'])) $_SESSION['disliked'] = [];
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 
@@ -87,6 +91,49 @@ case 'stats':
     $row['articles']   = db()->query('SELECT COUNT(*) FROM articles')->fetchColumn();
     $row['categories'] = db()->query("SELECT category, COUNT(*) as c FROM topics WHERE category IS NOT NULL GROUP BY category ORDER BY c DESC")->fetchAll();
     json_out($row);
+
+// ── Swipe ─────────────────────────────────────────────────────────────────
+case 'swipe':
+    $body      = json_decode(file_get_contents('php://input'), true) ?? [];
+    $topic_id  = (int)($body['topic_id'] ?? 0);
+    $direction = $body['direction'] ?? ''; // 'right' or 'left'
+
+    if (!$topic_id || !in_array($direction, ['right','left'])) err('Invalid swipe');
+
+    // Collect tags for this topic from its articles
+    $tags = db()->query("
+        SELECT DISTINCT at2.tag
+        FROM article_tags at2
+        JOIN article_topics ato ON ato.article_id = at2.article_id
+        WHERE ato.topic_id = {$topic_id}
+          AND at2.tag NOT LIKE 'country:%'
+        LIMIT 20
+    ")->fetchAll(PDO::FETCH_COLUMN);
+
+    // Also add category and type as tags
+    $meta = db()->query("SELECT category, content_type FROM topics WHERE id = {$topic_id}")->fetch();
+    if ($meta['category'])     $tags[] = strtolower($meta['category']);
+    if ($meta['content_type']) $tags[] = $meta['content_type'];
+
+    $list = $direction === 'right' ? 'liked' : 'disliked';
+    foreach ($tags as $tag) {
+        if (!in_array($tag, $_SESSION[$list])) {
+            $_SESSION[$list][] = $tag;
+        }
+    }
+    // Keep lists at max 30 tags (most recent first)
+    $_SESSION[$list] = array_slice($_SESSION[$list], -30);
+
+    json_out(['ok' => true, 'liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked']]);
+
+// ── Preferences ───────────────────────────────────────────────────────────
+case 'preferences':
+    json_out(['liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked']]);
+
+// ── Clear preferences ─────────────────────────────────────────────────────
+case 'clear_preferences':
+    $_SESSION['liked'] = $_SESSION['disliked'] = [];
+    json_out(['ok' => true]);
 
 default:
     err('Unknown action');
