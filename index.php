@@ -368,14 +368,19 @@ async function signal(tagsOrId, direction = 'right', source = 'swipe', anxiety =
 }
 
 // Article click — signal article tags once, then navigate
-async function articleClick(e, el) {
+function articleClick(e, el) {
   e.preventDefault();
   const url = el.href;
   if (!el.dataset.signaled) {
     el.dataset.signaled = '1';
     const tags    = JSON.parse(el.dataset.tags ?? '[]');
     const anxiety = parseFloat(el.dataset.anxiety ?? 5);
-    await signal(tags, 'right', 'click', anxiety);
+    // Fire-and-forget with keepalive — request completes even after navigation
+    fetch('api.php?action=swipe', {
+      method: 'POST', keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags, direction: 'right', source: 'click', anxiety })
+    });
   }
   window.location.href = url;
 }
