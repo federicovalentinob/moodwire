@@ -217,20 +217,11 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 /* ── Swipe gesture ──────────────────────────────────────────────────────── */
 .card { position:relative; cursor:pointer; user-select:none; touch-action:none; }
 .card.swiping { transition:none !important; }
-.swipe-overlay {
-  position:absolute; inset:0; border-radius:var(--radius);
-  display:flex; align-items:center; justify-content:center;
-  font-size:36px; opacity:0; pointer-events:none; transition:opacity 0.1s;
-  font-weight:900;
-}
-.swipe-overlay.like    { background:rgba(22,163,74,0.25); }
-.swipe-overlay.dislike { background:rgba(220,38,38,0.25); }
-.swipe-overlay.save    { background:rgba(37,99,235,0.25); }
+.swipe-overlay { display:none; }
 
-/* ── Card hint ──────────────────────────────────────────────────────────── */
 .card-hint {
-  padding:8px 14px 10px; font-size:11px; color:var(--muted);
-  text-align:right; letter-spacing:0.3px; text-transform:uppercase;
+  padding:6px 14px 8px; font-size:11px; color:var(--muted);
+  text-align:right; font-weight:600;
 }
 .articles-header {
   display:flex; justify-content:space-between; align-items:center;
@@ -312,7 +303,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
   <div id="saved-overlay" onclick="if(event.target===this)closeSavedOverlay()">
     <div id="saved-overlay-card">
       <div id="overlay-handle"></div>
-      <div id="overlay-hint">Swipe left · right · up to act</div>
+      <div id="overlay-hint">↙ dislike &nbsp;·&nbsp; ↘ like &nbsp;·&nbsp; ↓ close</div>
       <div id="overlay-content"></div>
     </div>
   </div>
@@ -441,10 +432,7 @@ function renderCard(t, i) {
       ${articles}
     </div>
 
-    <div class="card-hint">Tap for summary · Swipe to react</div>
-    <div class="swipe-overlay like">👍</div>
-    <div class="swipe-overlay dislike">👎</div>
-    <div class="swipe-overlay save">🔖</div>
+    <div class="card-hint">${t.articles.length} article${t.articles.length !== 1 ? 's' : ''}</div>
   </div>`;
 }
 
@@ -497,9 +485,7 @@ function tapCard(id, card) {
   card.dataset.state = next;
   bullets.style.display  = next >= 1 ? '' : 'none';
   articles.style.display = next >= 2 ? '' : 'none';
-  hint.textContent = next === 0 ? 'Tap for summary'
-                   : next === 1 ? 'Tap for articles'
-                   : 'Tap to collapse';
+  // hint is article count — no change needed
 }
 
 function esc(s) {
@@ -580,7 +566,7 @@ function openSaved(id) {
     const hint=card.querySelector('.card-hint');
     if(bullets)bullets.style.display='';
     if(articles)articles.style.display='';
-    if(hint)hint.textContent='Swipe to act · down to close';
+    
     attachSwipeOverlay(card, id);
   }
   document.getElementById('saved-overlay').classList.add('open');
