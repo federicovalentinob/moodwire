@@ -71,7 +71,7 @@ case 'topics':
     $disliked = $_SESSION['disliked'] ?? [];
     $has_prefs = !empty($liked) || !empty($disliked);
 
-    if ($has_prefs && $offset > 0) {
+    if ($has_prefs) {
         // Get tags for each remaining topic
         $ids = array_column($remaining, 'id');
         $ids_str = implode(',', array_map('intval', $ids));
