@@ -6,12 +6,12 @@
 <title>Moodwire</title>
 <style>
 :root {
-  --bg:      #0f1117;
-  --surface: #1a1d27;
-  --border:  #2a2d3a;
-  --text:    #f1f5f9;
-  --muted:   #64748b;
-  --accent:  #3b82f6;
+  --bg:      #f5f5f7;
+  --surface: #ffffff;
+  --border:  #e4e4e7;
+  --text:    #111827;
+  --muted:   #6b7280;
+  --accent:  #2563eb;
   --low:     #16a34a;
   --mid:     #d97706;
   --high:    #dc2626;
@@ -88,9 +88,9 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
   font-size:10px; font-weight:700; padding:3px 8px;
   border-radius:10px; letter-spacing:0.3px; text-transform:uppercase;
 }
-.badge-cat   { background:#1e293b; color:#94a3b8; }
-.badge-geo   { background:#1e293b; color:#7c3aed; }
-.badge-type  { background:#1e293b; color:#0891b2; }
+.badge-cat   { background:#f1f5f9; color:#64748b; }
+.badge-geo   { background:#ede9fe; color:#7c3aed; }
+.badge-type  { background:#e0f2fe; color:#0369a1; }
 .card-time   { font-size:11px; color:var(--muted); }
 
 .anxiety-pip {
@@ -106,7 +106,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 
 .card-bullets { padding:8px 14px 4px; }
 .card-bullets li {
-  font-size:14px; color:#cbd5e1; line-height:1.5;
+  font-size:14px; color:#374151; line-height:1.5;
   padding:3px 0; list-style:none;
   padding-left:14px; position:relative;
 }
@@ -137,7 +137,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
   transition:background 0.1s;
   -webkit-tap-highlight-color:transparent;
 }
-.article-row:active { background:rgba(255,255,255,0.04); }
+.article-row:active { background:rgba(0,0,0,0.04); }
 
 .article-thumb {
   width:52px; height:36px; object-fit:cover;
@@ -198,7 +198,8 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 #bottom-nav {
   display:flex; border-top:1px solid var(--border);
   padding-bottom:var(--safe-bot);
-  background:var(--bg); flex-shrink:0;
+  background:var(--surface); flex-shrink:0;
+  box-shadow: 0 -1px 0 var(--border);
 }
 .nav-item {
   flex:1; display:flex; flex-direction:column; align-items:center;
