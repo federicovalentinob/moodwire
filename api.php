@@ -82,8 +82,7 @@ case 'topics':
             SELECT ato.topic_id, at2.tag
             FROM article_tags at2
             JOIN article_topics ato ON ato.article_id = at2.article_id
-            WHERE ato.topic_id IN ({$ids_str}) AND at2.tag NOT LIKE 'country:%'
-        ")->fetchAll();
+            WHERE ato.topic_id IN ({$ids_str})         ")->fetchAll();
 
         $topic_tags = [];
         foreach ($tag_rows as $row) $topic_tags[$row['topic_id']][] = $row['tag'];
@@ -224,8 +223,7 @@ case 'swipe':
             FROM article_tags at2
             JOIN article_topics ato ON ato.article_id = at2.article_id
             WHERE ato.topic_id = {$topic_id}
-              AND at2.tag NOT LIKE 'country:%'
-            LIMIT 20
+                          LIMIT 20
         ")->fetchAll(PDO::FETCH_COLUMN);
         $meta = db()->query("SELECT category, content_type FROM topics WHERE id = {$topic_id}")->fetch();
         if ($meta['category'])     $tags[] = strtolower($meta['category']);
