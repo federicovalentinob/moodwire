@@ -276,6 +276,7 @@ let currentOffset  = 0;
 let totalTopics    = 0;
 let isLoading      = false;
 const PAGE_SIZE    = 5;
+const shownIds     = new Set();
 
 // ── Fetch & render topics ──────────────────────────────────────────────────
 async function loadTopics(reset = true) {
@@ -286,19 +287,22 @@ async function loadTopics(reset = true) {
 
   if (reset) {
     currentOffset = 0;
+    shownIds.clear();
     document.getElementById('feed').innerHTML = '<div id="loader">Loading…</div>';
   } else {
     document.getElementById('sentinel').insertAdjacentHTML('beforebegin', '<div id="loader-more" style="text-align:center;padding:16px;color:var(--muted);font-size:13px">Loading…</div>');
   }
 
   const params = new URLSearchParams({ limit: PAGE_SIZE, offset: currentOffset });
-  if (activeAnxiety)  params.set('anxiety',  activeAnxiety);
-  if (activeCategory) params.set('category', activeCategory);
+  if (activeAnxiety)       params.set('anxiety',  activeAnxiety);
+  if (activeCategory)      params.set('category', activeCategory);
+  if (shownIds.size)       params.set('exclude',  [...shownIds].join(','));
 
   const res  = await fetch('api.php?action=topics&' + params);
   const data = await res.json();
   totalTopics   = data.total;
   currentOffset += data.topics.length;
+  data.topics.forEach(t => shownIds.add(t.id));
 
   document.getElementById('loader-more')?.remove();
 

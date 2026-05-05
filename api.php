@@ -55,6 +55,14 @@ case 'topics':
     $all_topics = db()->query($sql_all)->fetchAll();
     $total      = count($all_topics);
 
+    // Exclude already-shown topic IDs passed from client
+    $exclude = [];
+    if (!empty($_GET['exclude'])) {
+        $exclude = array_map('intval', explode(',', $_GET['exclude']));
+    }
+    $all_topics = array_values(array_filter($all_topics, fn($t) => !in_array((int)$t['id'], $exclude)));
+    $total = count($all_topics);
+
     // Slice already-seen topics
     $remaining = array_slice($all_topics, $offset);
 
