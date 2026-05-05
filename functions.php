@@ -207,6 +207,11 @@ function download_thumbnail(string $image_url): ?string {
 
 function save_article(int $feed_id, array $article): bool {
     try {
+        // Skip articles published more than 24h ago
+        if (!empty($article['published_at']) && strtotime($article['published_at']) < time() - 86400) {
+            return false;
+        }
+
         // Skip if same title already exists (published within last 24h)
         $exists = db()->prepare('SELECT COUNT(*) FROM articles WHERE title = ? AND fetched_at > NOW() - INTERVAL 24 HOUR');
         $exists->execute([$article['title']]);
