@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/functions.php';
 
-define('BATCH_SIZE', 20);
+define('BATCH_SIZE', 50);
 
 $total_tagged = 0;
 $total_errors = 0;
