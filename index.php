@@ -370,13 +370,14 @@ async function signal(tagsOrId, direction = 'right', source = 'swipe', anxiety =
 // Article click — signal article tags once, then navigate
 async function articleClick(e, el) {
   e.preventDefault();
-  window.open(el.href, '_blank');
+  const win = window.open('', '_blank'); // open now (in user gesture, no popup block)
   if (!el.dataset.signaled) {
     el.dataset.signaled = '1';
     const tags    = JSON.parse(el.dataset.tags ?? '[]');
     const anxiety = parseFloat(el.dataset.anxiety ?? 5);
-    await signal(tags, 'right', 'click', anxiety);
+    await signal(tags, 'right', 'click', anxiety); // update meter first
   }
+  win.location.href = el.href; // then navigate the tab
 }
 
 // 3-state tap: 0=title only → 1=+bullets → 2=+articles → 0
