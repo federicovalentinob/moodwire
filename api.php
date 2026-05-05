@@ -41,26 +41,83 @@ case 'topics':
     $limit  = max(1, min(20, (int)($_GET['limit']  ?? 5)));
     $offset = max(0, (int)($_GET['offset'] ?? 0));
 
-    // Total count for pagination
-    $total = db()->query('SELECT COUNT(*) FROM (' .
-        'SELECT t.id FROM topics t
-         LEFT JOIN article_topics ato ON ato.topic_id = t.id
-         WHERE ' . implode(' AND ', $where) . '
-         GROUP BY t.id HAVING COUNT(ato.article_id) > 0' .
-    ') x')->fetchColumn();
+    // Fetch all candidate topics ordered by default sort
+    $sql_all = 'SELECT t.*,
+                       MAX(COALESCE(a.published_at, a.fetched_at)) as latest_article_at
+                FROM topics t
+                LEFT JOIN article_topics ato ON ato.topic_id = t.id
+                LEFT JOIN articles a ON a.id = ato.article_id
+                WHERE ' . implode(' AND ', $where) . '
+                GROUP BY t.id
+                HAVING COUNT(ato.article_id) > 0
+                ORDER BY t.anxiety_avg DESC, latest_article_at DESC';
 
-    $sql = 'SELECT t.*,
-                   MAX(COALESCE(a.published_at, a.fetched_at)) as latest_article_at
-            FROM topics t
-            LEFT JOIN article_topics ato ON ato.topic_id = t.id
-            LEFT JOIN articles a ON a.id = ato.article_id
-            WHERE ' . implode(' AND ', $where) . '
-            GROUP BY t.id
-            HAVING COUNT(ato.article_id) > 0
-            ORDER BY t.anxiety_avg DESC, latest_article_at DESC
-            LIMIT ' . $limit . ' OFFSET ' . $offset;
+    $all_topics = db()->query($sql_all)->fetchAll();
+    $total      = count($all_topics);
 
-    $topics = db()->query($sql)->fetchAll();
+    // Slice already-seen topics
+    $remaining = array_slice($all_topics, $offset);
+
+    // Personalization: score topics by tag overlap (only if preferences exist)
+    $liked    = $_SESSION['liked']    ?? [];
+    $disliked = $_SESSION['disliked'] ?? [];
+    $has_prefs = !empty($liked) || !empty($disliked);
+
+    if ($has_prefs && $offset > 0) {
+        // Get tags for each remaining topic
+        $ids = array_column($remaining, 'id');
+        $ids_str = implode(',', array_map('intval', $ids));
+        $tag_rows = db()->query("
+            SELECT ato.topic_id, at2.tag
+            FROM article_tags at2
+            JOIN article_topics ato ON ato.article_id = at2.article_id
+            WHERE ato.topic_id IN ({$ids_str}) AND at2.tag NOT LIKE 'country:%'
+        ")->fetchAll();
+
+        $topic_tags = [];
+        foreach ($tag_rows as $row) $topic_tags[$row['topic_id']][] = $row['tag'];
+
+        // Score each topic
+        foreach ($remaining as &$t) {
+            $tags  = $topic_tags[$t['id']] ?? [];
+            $score = 0;
+            foreach ($tags as $tag) {
+                $score += ($liked[$tag]    ?? 0);
+                $score -= ($disliked[$tag] ?? 0) * 0.8;
+            }
+            // Also score by category/type
+            $score += ($liked[strtolower($t['category'] ?? '')] ?? 0);
+            $score -= ($disliked[strtolower($t['category'] ?? '')] ?? 0) * 0.8;
+            $t['_score'] = $score;
+        }
+        unset($t);
+
+        // Split: 50% personalized (by score desc), 50% default order
+        $personal = $remaining;
+        usort($personal, fn($a,$b) => $b['_score'] <=> $a['_score']);
+
+        $half_p = (int)ceil($limit / 2);
+        $half_d = $limit - $half_p;
+
+        $personal_picks = array_slice($personal, 0, $half_p);
+        $personal_ids   = array_column($personal_picks, 'id');
+
+        $default_picks  = array_filter($remaining, fn($t) => !in_array($t['id'], $personal_ids));
+        $default_picks  = array_values(array_slice($default_picks, 0, $half_d));
+
+        // Interleave: p, d, p, d ...
+        $page = [];
+        $pi = 0; $di = 0;
+        for ($i = 0; $i < $limit; $i++) {
+            if ($i % 2 === 0 && isset($personal_picks[$pi])) $page[] = $personal_picks[$pi++];
+            elseif (isset($default_picks[$di]))               $page[] = $default_picks[$di++];
+            elseif (isset($personal_picks[$pi]))              $page[] = $personal_picks[$pi++];
+        }
+    } else {
+        $page = array_slice($remaining, 0, $limit);
+    }
+
+    $topics = $page;
 
     foreach ($topics as &$topic) {
         // Bullets
