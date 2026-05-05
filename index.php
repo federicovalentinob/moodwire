@@ -47,6 +47,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
   border:1.5px solid var(--border); background:transparent;
   color:var(--muted); font-size:13px; font-weight:600;
   cursor:pointer; white-space:nowrap; transition:all 0.15s;
+  min-width:64px; text-align:center;
 }
 .chip.active        { background:var(--accent); border-color:var(--accent); color:#fff; }
 .chip.active.low    { background:var(--low);  border-color:var(--low);  }
@@ -230,6 +231,10 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 
   <!-- Preferences -->
   <div id="prefs" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">Your interests</span>
+      <button onclick="clearPreferences()" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;cursor:pointer">Clear</button>
+    </div>
     <div class="pref-row">
       <span class="pref-label like">✓</span>
       <div class="pref-tags" id="liked-tags"></div>
@@ -465,6 +470,11 @@ function renderPreferences(liked, disliked) {
     dislikedEntries.length ? dislikedEntries.map(([t,c]) =>
       `<span class="pref-tag dislike">${esc(t)}${c>1?` <b>${c}</b>`:''}</span>`).join('')
     : '<span class="pref-empty">swipe left to add</span>';
+}
+
+async function clearPreferences() {
+  await fetch('api.php?action=clear_preferences', { method: 'POST' });
+  renderPreferences({}, {});
 }
 
 async function loadPreferences() {
