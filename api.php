@@ -2,8 +2,8 @@
 require_once __DIR__ . '/functions.php';
 
 session_start();
-if (!isset($_SESSION['liked']))    $_SESSION['liked']    = [];
-if (!isset($_SESSION['disliked'])) $_SESSION['disliked'] = [];
+if (!isset($_SESSION['liked']))    $_SESSION['liked']    = []; // {tag => count}
+if (!isset($_SESSION['disliked'])) $_SESSION['disliked'] = []; // {tag => count}
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
@@ -115,14 +115,23 @@ case 'swipe':
     if ($meta['category'])     $tags[] = strtolower($meta['category']);
     if ($meta['content_type']) $tags[] = $meta['content_type'];
 
-    $list = $direction === 'right' ? 'liked' : 'disliked';
+    $list  = $direction === 'right' ? 'liked'    : 'disliked';
+    $other = $direction === 'right' ? 'disliked' : 'liked';
+
     foreach ($tags as $tag) {
-        if (!in_array($tag, $_SESSION[$list])) {
-            $_SESSION[$list][] = $tag;
-        }
+        $tag = trim(strtolower($tag));
+        if (!$tag) continue;
+        // Remove from the opposite list
+        unset($_SESSION[$other][$tag]);
+        // Increment count in this list
+        $_SESSION[$list][$tag] = ($_SESSION[$list][$tag] ?? 0) + 1;
     }
-    // Keep lists at max 30 tags (most recent first)
-    $_SESSION[$list] = array_slice($_SESSION[$list], -30);
+
+    // Sort each list by count desc, keep top 30
+    arsort($_SESSION['liked']);
+    arsort($_SESSION['disliked']);
+    $_SESSION['liked']    = array_slice($_SESSION['liked'],    0, 30, true);
+    $_SESSION['disliked'] = array_slice($_SESSION['disliked'], 0, 30, true);
 
     json_out(['ok' => true, 'liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked']]);
 

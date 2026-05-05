@@ -453,14 +453,17 @@ function renderPreferences(liked, disliked) {
   document.getElementById('prefs').style.display         = hasPrefs ? '' : 'none';
   document.getElementById('prefs-divider').style.display = hasPrefs ? '' : 'none';
 
+  const likedEntries    = Object.entries(liked    ?? {}).sort((a,b) => b[1]-a[1]).slice(0,15);
+  const dislikedEntries = Object.entries(disliked ?? {}).sort((a,b) => b[1]-a[1]).slice(0,15);
+
   document.getElementById('liked-tags').innerHTML =
-    liked.length ? liked.slice(-15).reverse().map(t =>
-      `<span class="pref-tag like">${esc(t)}</span>`).join('')
+    likedEntries.length ? likedEntries.map(([t,c]) =>
+      `<span class="pref-tag like">${esc(t)}${c>1?` <b>${c}</b>`:''}</span>`).join('')
     : '<span class="pref-empty">swipe right to add</span>';
 
   document.getElementById('disliked-tags').innerHTML =
-    disliked.length ? disliked.slice(-15).reverse().map(t =>
-      `<span class="pref-tag dislike">${esc(t)}</span>`).join('')
+    dislikedEntries.length ? dislikedEntries.map(([t,c]) =>
+      `<span class="pref-tag dislike">${esc(t)}${c>1?` <b>${c}</b>`:''}</span>`).join('')
     : '<span class="pref-empty">swipe left to add</span>';
 }
 
