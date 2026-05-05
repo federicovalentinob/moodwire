@@ -55,10 +55,10 @@ cli_log('Got ' . count($clusters) . ' clusters. Processing...');
 
 
 // ── Step 2: Save clusters + generate bullets ──────────────────────────────────
-$bullets_prompt_tpl = get_prompt('bullets');
 $saved_new   = 0;
 $saved_existing = 0;
-$topics_needing_bullets = []; // topic_id => [article titles]
+$topics_needing_bullets = []; // topic_id => title (existing topics)
+$new_topics_pending = []; // new topics waiting for bullets: [{title, ids, anxiety, type, category}]
 
 $solo_articles = []; // articles left alone — to be merged later
 
@@ -102,25 +102,18 @@ foreach ($clusters as $cluster) {
         $saved_existing++;
         cli_log("  → Assigned to existing [{$topic_id}] {$title}");
     } else {
-        // Create new topic — get bullet points first
+        // Queue new topic for batch bullet generation
         $art_titles = db()->query("SELECT title FROM articles WHERE id IN ({$ids_str})")->fetchAll(PDO::FETCH_COLUMN);
-        $art_list   = implode("\n", array_map(fn($t) => "- {$t}", $art_titles));
-        $max_b = min(5, max(2, count($valid_ids))); $bp_prompt = str_replace(['{{topic}}', '{{articles}}', '{{num_bullets}}'], [$title, $art_list, (string)$max_b], $bullets_prompt_tpl);
-
-        $raw_b   = call_perplexity($bp_prompt, $system);
-        $bullets = json_decode(extract_json($raw_b), true);
-
-        if (!is_array($bullets) || count($bullets) < 1) {
-            $bullets = array_filter(array_map('trim', preg_split('/\n|•|-/', $raw_b)));
-            $bullets = array_values(array_slice($bullets, 0, 3));
-        }
-        $bullets = dedupe_bullets($bullets); $max_b = min(5, max(2, count($valid_ids))); $bullets = array_map(fn($b) => trim($b), array_slice($bullets, 0, $max_b));
-
-        $new_id = save_topic($title, $bullets, $anxiety_avg, $valid_ids, $content_type, $category);
-        update_topic_geo($new_id);
-        $saved_new++;
-        cli_log("  + New topic [{$new_id}] {$title} (anxiety: " . round($anxiety_avg, 1) . ")");
-        foreach ($bullets as $b) cli_log("    • {$b}");
+        $new_topics_pending[] = [
+            'title'        => $title,
+            'ids'          => $valid_ids,
+            'anxiety_avg'  => $anxiety_avg,
+            'content_type' => $content_type,
+            'category'     => $category,
+            'art_titles'   => $art_titles,
+            'max_b'        => min(5, max(2, count($valid_ids))),
+        ];
+        cli_log("  + Queued [{$title}] for batch bullets");
     }
 }
 
@@ -136,6 +129,45 @@ if (!empty($solo_articles)) {
             cli_log("  → Merged [{$aid}] into [{$fallback['id']}] {$fallback['title']}");
         }
         $topics_needing_bullets[$fallback['id']] = $fallback['title'];
+    }
+}
+
+// ── Step 3b: Batch bullet generation for all new topics ──────────────────────
+if (!empty($new_topics_pending)) {
+    cli_log("\nGenerating bullets for " . count($new_topics_pending) . " new topics in one call...");
+
+    $topics_str = '';
+    foreach ($new_topics_pending as $i => $t) {
+        $art_list = implode("\n", array_map(fn($a) => "- {$a}", $t['art_titles']));
+        $topics_str .= "TOPIC_ID:{$i} \"{$t['title']}\" ({$t['max_b']} bullets)\n{$art_list}\n\n";
+    }
+
+    $batch_prompt = get_prompt('bullets_batch');
+    $batch_prompt = str_replace('{{topics}}', $topics_str, $batch_prompt);
+    $raw_batch    = call_perplexity($batch_prompt, $system);
+    $batch_result = json_decode(extract_json($raw_batch), true);
+
+    // Index results by id
+    $bullets_by_idx = [];
+    if (is_array($batch_result)) {
+        foreach ($batch_result as $r) {
+            if (isset($r['id'], $r['bullets'])) $bullets_by_idx[(int)$r['id']] = $r['bullets'];
+        }
+    }
+
+    foreach ($new_topics_pending as $i => $t) {
+        $bullets = $bullets_by_idx[$i] ?? [];
+        if (empty($bullets)) {
+            $bullets = ["No summary available."];
+        }
+        $bullets = dedupe_bullets($bullets);
+        $bullets = array_map(fn($b) => trim($b), array_slice($bullets, 0, $t['max_b']));
+
+        $new_id = save_topic($t['title'], $bullets, $t['anxiety_avg'], $t['ids'], $t['content_type'], $t['category']);
+        update_topic_geo($new_id);
+        $saved_new++;
+        cli_log("  + [{$new_id}] {$t['title']}");
+        foreach ($bullets as $b) cli_log("    • {$b}");
     }
 }
 
