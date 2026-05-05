@@ -153,6 +153,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 
 /* ── Preferences bar ────────────────────────────────────────────────────── */
 #prefs { padding:6px 12px 0; display:flex; flex-direction:column; gap:4px; }
+#country-row { border-top:1px solid var(--border); padding-top:5px; margin-top:2px; }
 .pref-row { display:flex; align-items:center; gap:6px; overflow:hidden; }
 .pref-label { font-size:11px; font-weight:800; flex-shrink:0; width:16px; }
 .pref-label.like    { color:var(--low); }
