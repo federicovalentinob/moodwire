@@ -40,14 +40,17 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 #filters {
   display:flex; gap:6px; overflow-x:auto; padding-bottom:8px;
   scrollbar-width:none; -webkit-overflow-scrolling:touch;
+  align-items:center; flex-wrap:nowrap;
 }
 #filters::-webkit-scrollbar { display:none; }
+#cat-chips { display:contents; }
 .chip {
   flex-shrink:0; padding:4px 10px; border-radius:14px;
   border:1.5px solid var(--border); background:transparent;
   color:var(--muted); font-size:12px; font-weight:600;
   cursor:pointer; white-space:nowrap; transition:all 0.15s;
-  min-width:48px; text-align:center;
+  min-width:44px; text-align:center; height:28px;
+  display:inline-flex; align-items:center; justify-content:center;
 }
 .chip.active        { background:var(--accent); border-color:var(--accent); color:#fff; }
 .chip.active.low    { background:var(--low);  border-color:var(--low);  }
@@ -150,25 +153,18 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 .article-anx   { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
 
 /* ── Preferences bar ────────────────────────────────────────────────────── */
-#prefs {
-  padding:10px 16px 0; display:flex; flex-direction:column; gap:6px;
-}
-.pref-row { display:flex; align-items:flex-start; gap:8px; }
-.pref-label {
-  font-size:10px; font-weight:800; text-transform:uppercase;
-  letter-spacing:0.5px; padding-top:3px; flex-shrink:0; width:20px;
-}
+#prefs { padding:6px 12px 0; display:flex; flex-direction:column; gap:4px; }
+.pref-row { display:flex; align-items:center; gap:6px; overflow:hidden; }
+.pref-label { font-size:11px; font-weight:800; flex-shrink:0; width:16px; }
 .pref-label.like    { color:var(--low); }
 .pref-label.dislike { color:var(--high); }
-.pref-tags { display:flex; flex-wrap:wrap; gap:4px; }
-.pref-tag {
-  font-size:11px; padding:2px 8px; border-radius:10px;
-  font-weight:600; cursor:pointer;
-}
+.pref-tags { display:flex; gap:4px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; }
+.pref-tags::-webkit-scrollbar { display:none; }
+.pref-tag { font-size:11px; padding:2px 7px; border-radius:10px; font-weight:600; flex-shrink:0; }
 .pref-tag.like    { background:rgba(22,163,74,0.15);  color:var(--low);  border:1px solid rgba(22,163,74,0.3); }
 .pref-tag.dislike { background:rgba(220,38,38,0.15); color:var(--high); border:1px solid rgba(220,38,38,0.3); }
-.pref-empty { font-size:11px; color:var(--muted); font-style:italic; }
-#prefs-divider { height:1px; background:var(--border); margin:10px 16px 0; }
+.pref-empty { font-size:11px; color:var(--muted); font-style:italic; flex-shrink:0; }
+#prefs-divider { height:1px; background:var(--border); margin:6px 12px 0; }
 
 /* ── Swipe gesture ──────────────────────────────────────────────────────── */
 .card { position:relative; cursor:pointer; user-select:none; touch-action:pan-y; }
