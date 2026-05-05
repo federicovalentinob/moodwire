@@ -574,6 +574,7 @@ function openSaved(id) {
   const card = content.querySelector('.card');
   if (card) {
     card.style.transform=''; card.style.opacity='1'; card.style.transition='';
+    card.querySelectorAll('.swipe-overlay').forEach(o=>o.style.opacity=0);
     card.dataset.state='2';
     const bullets=card.querySelector('.card-bullets');
     const articles=card.querySelector('.articles-section');
