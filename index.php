@@ -220,7 +220,15 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
   <div id="header">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <h1 style="margin:0">Mood<span>wire</span></h1>
-      <button id="clear-btn" onclick="clearPreferences()" style="display:none;background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:600;padding:4px 12px;border-radius:10px;cursor:pointer">Clear</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="anxiety-meter" style="display:none;align-items:center;gap:5px">
+          <div id="anxiety-bar-wrap" style="width:60px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+            <div id="anxiety-bar" style="height:100%;border-radius:3px;transition:width 0.4s,background 0.4s"></div>
+          </div>
+          <span id="anxiety-val" style="font-size:11px;font-weight:700;min-width:24px"></span>
+        </div>
+        <button id="clear-btn" onclick="clearPreferences()" style="display:none;background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:600;padding:4px 12px;border-radius:10px;cursor:pointer">Clear</button>
+      </div>
     </div>
     <div id="filters">
       <button class="chip active" data-filter="" data-group="anxiety">All</button>
@@ -302,7 +310,7 @@ function renderCard(t, i) {
     // Store article tags as data attribute (exclude country tags)
     const artTags = (a.tags ?? '').split(',').map(s=>s.trim()).filter(s=>s && !s.startsWith('country:'));
     const tagsAttr = esc(JSON.stringify(artTags));
-    return `<a href="${esc(a.url)}" target="_blank" class="article-row" data-tags="${tagsAttr}" onclick="articleClick(event, this)">
+    return `<a href="${esc(a.url)}" target="_blank" class="article-row" data-tags="${tagsAttr}" data-anxiety="${anx.toFixed(1)}" onclick="articleClick(event, this)">
       ${thumb}
       <div class="article-info">
         <div class="article-title">${esc(a.title)}</div>
@@ -313,7 +321,7 @@ function renderCard(t, i) {
   }).join('');
 
   return `
-  <div class="card" data-id="${t.id}" data-state="0"
+  <div class="card" data-id="${t.id}" data-state="0" data-anxiety="${t.anxiety_avg}"
        style="border-left-color:${t.anxiety_color};animation-delay:${delay}ms"
        onclick="tapCard(${t.id}, this)">
     <div class="card-header">
@@ -343,11 +351,11 @@ function renderCard(t, i) {
   </div>`;
 }
 
-// Signal interest — accepts tags array or topic_id
-async function signal(tagsOrId, direction = 'right') {
+// Signal interest — accepts tags array or topic_id, optional source and anxiety
+async function signal(tagsOrId, direction = 'right', source = 'swipe', anxiety = null) {
   const body = typeof tagsOrId === 'number'
-    ? { topic_id: tagsOrId, direction }
-    : { tags: tagsOrId, direction };
+    ? { topic_id: tagsOrId, direction, source, anxiety }
+    : { tags: tagsOrId, direction, source, anxiety };
   if (Array.isArray(tagsOrId) && !tagsOrId.length) return;
   const res  = await fetch('api.php?action=swipe', {
     method: 'POST',
@@ -356,6 +364,7 @@ async function signal(tagsOrId, direction = 'right') {
   });
   const data = await res.json();
   if (data.liked !== undefined) renderPreferences(data.liked, data.disliked);
+  if (data.anxiety_avg !== undefined) renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
 }
 
 // Article click — signal article tags once, then navigate
@@ -363,8 +372,9 @@ function articleClick(e, el) {
   e.preventDefault();
   if (!el.dataset.signaled) {
     el.dataset.signaled = '1';
-    const tags = JSON.parse(el.dataset.tags ?? '[]');
-    signal(tags, 'right').then(() => window.open(el.href, '_blank'));
+    const tags    = JSON.parse(el.dataset.tags ?? '[]');
+    const anxiety = parseFloat(el.dataset.anxiety ?? 5);
+    signal(tags, 'right', 'click', anxiety).then(() => window.open(el.href, '_blank'));
   } else {
     window.open(el.href, '_blank');
   }
@@ -380,7 +390,7 @@ function tapCard(id, card) {
   // First tap = interest signal for the topic (once only)
   if (state === 0 && !card.dataset.signaled) {
     card.dataset.signaled = '1';
-    signal(id, 'right');
+    signal(id, 'right', 'tap', parseFloat(card.dataset.anxiety ?? 5));
   }
   const bullets  = card.querySelector('.card-bullets');
   const articles = card.querySelector('.articles-section');
@@ -507,6 +517,18 @@ function renderPreferences(liked, disliked) {
     : '<span class="pref-empty">swipe left to add</span>';
 }
 
+function renderAnxietyMeter(avg, count) {
+  const meter = document.getElementById('anxiety-meter');
+  if (avg === null || count === 0) { meter.style.display = 'none'; return; }
+  meter.style.display = 'flex';
+  const pct   = (avg / 10) * 100;
+  const color = avg >= 7 ? '#dc2626' : avg >= 4 ? '#d97706' : '#16a34a';
+  document.getElementById('anxiety-bar').style.width      = pct + '%';
+  document.getElementById('anxiety-bar').style.background = color;
+  document.getElementById('anxiety-val').style.color      = color;
+  document.getElementById('anxiety-val').textContent      = avg.toFixed(1);
+}
+
 async function clearPreferences() {
   await fetch('api.php?action=clear_preferences', { method: 'POST' });
   renderPreferences({}, {});
@@ -516,6 +538,7 @@ async function loadPreferences() {
   const res  = await fetch('api.php?action=preferences');
   const data = await res.json();
   renderPreferences(data.liked, data.disliked);
+  renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
 }
 
 

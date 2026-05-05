@@ -4,7 +4,9 @@ require_once __DIR__ . '/functions.php';
 session_start();
 if (!isset($_SESSION['liked']))    $_SESSION['liked']    = []; // {tag => count}
 if (!isset($_SESSION['disliked'])) $_SESSION['disliked'] = []; // {tag => count}
-if (!isset($_SESSION['signaled'])) $_SESSION['signaled'] = []; // set of "topic:id" or "article:url"
+if (!isset($_SESSION['signaled']))       $_SESSION['signaled']       = [];
+if (!isset($_SESSION['anxiety_total']))  $_SESSION['anxiety_total']  = 0.0;
+if (!isset($_SESSION['anxiety_count']))  $_SESSION['anxiety_count']  = 0;
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
@@ -106,10 +108,21 @@ case 'swipe':
         ? 'article:' . md5(implode(',', (array)$body['tags']))
         : 'topic:' . $topic_id . ':' . $direction;
 
+    $source  = $body['source'] ?? 'swipe'; // 'tap', 'click', or 'swipe'
+    $anxiety = isset($body['anxiety']) ? (float)$body['anxiety'] : null;
+
     if (in_array($signal_key, $_SESSION['signaled'])) {
-        json_out(['ok' => true, 'skipped' => true, 'liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked']]);
+        json_out(['ok' => true, 'skipped' => true, 'liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked'],
+                  'anxiety_avg' => $_SESSION['anxiety_count'] > 0 ? round($_SESSION['anxiety_total'] / $_SESSION['anxiety_count'], 2) : null,
+                  'anxiety_count' => $_SESSION['anxiety_count']]);
     }
     $_SESSION['signaled'][] = $signal_key;
+
+    // Track anxiety exposure for tap and click (not swipe)
+    if (in_array($source, ['tap', 'click']) && $anxiety !== null) {
+        $_SESSION['anxiety_total'] += $anxiety;
+        $_SESSION['anxiety_count']++;
+    }
 
     // Accept either a topic_id or a raw tags array
     if (!empty($body['tags']) && is_array($body['tags'])) {
@@ -160,15 +173,21 @@ case 'swipe':
     $_SESSION['liked']    = array_slice($_SESSION['liked'],    0, 30, true);
     $_SESSION['disliked'] = array_slice($_SESSION['disliked'], 0, 30, true);
 
-    json_out(['ok' => true, 'liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked']]);
+    json_out(['ok' => true, 'liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked'],
+              'anxiety_avg'   => $_SESSION['anxiety_count'] > 0 ? round($_SESSION['anxiety_total'] / $_SESSION['anxiety_count'], 2) : null,
+              'anxiety_count' => $_SESSION['anxiety_count']]);
 
 // ── Preferences ───────────────────────────────────────────────────────────
 case 'preferences':
-    json_out(['liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked']]);
+    json_out(['liked' => $_SESSION['liked'], 'disliked' => $_SESSION['disliked'],
+              'anxiety_avg'   => $_SESSION['anxiety_count'] > 0 ? round($_SESSION['anxiety_total'] / $_SESSION['anxiety_count'], 2) : null,
+              'anxiety_count' => $_SESSION['anxiety_count']]);
 
 // ── Clear preferences ─────────────────────────────────────────────────────
 case 'clear_preferences':
     $_SESSION['liked'] = $_SESSION['disliked'] = $_SESSION['signaled'] = [];
+    $_SESSION['anxiety_total'] = 0.0;
+    $_SESSION['anxiety_count'] = 0;
     json_out(['ok' => true]);
 
 default:
