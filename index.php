@@ -609,11 +609,12 @@ async function handleSwipeAction(card, dir, onComplete) {
 }
 
 function makeSwipeable(card, onSwipe) {
+  card.style.touchAction = 'none'; // force inline — Chrome ignores CSS on dynamic elements
   let startX=null, startY=null, dx=0, dy=0;
   card.addEventListener('touchstart', e => {
     startX=e.touches[0].clientX; startY=e.touches[0].clientY; dx=0; dy=0;
     card.classList.add('swiping');
-  }, {passive:true});
+  }, {passive:false});
   card.addEventListener('touchmove', e => {
     if (startX===null) return;
     dx=e.touches[0].clientX-startX; dy=e.touches[0].clientY-startY;
