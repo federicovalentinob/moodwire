@@ -356,7 +356,8 @@ async function signal(tagsOrId, direction = 'right', source = 'swipe', anxiety =
   const body = typeof tagsOrId === 'number'
     ? { topic_id: tagsOrId, direction, source, anxiety }
     : { tags: tagsOrId, direction, source, anxiety };
-  if (Array.isArray(tagsOrId) && !tagsOrId.length) return;
+  // Skip only if tags empty AND no anxiety to track
+  if (Array.isArray(tagsOrId) && !tagsOrId.length && anxiety === null) return;
   const res  = await fetch('api.php?action=swipe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
