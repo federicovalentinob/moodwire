@@ -458,13 +458,17 @@ function attachSwipe(card) {
       card.style.transform = `translateX(${dir === 'right' ? '120vw' : '-120vw'}) rotate(${dir === 'right' ? 20 : -20}deg)`;
       card.style.opacity = '0';
       setTimeout(() => card.remove(), 300);
-      const res = await fetch('api.php?action=swipe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic_id: id, direction: dir })
-      });
-      const data = await res.json();
-      renderPreferences(data.liked, data.disliked);
+      // Only signal tags on swipe right if card was never opened (state 0)
+      const wasUntouched = parseInt(card.dataset.state) === 0;
+      if (dir === 'left' || wasUntouched) {
+        const res = await fetch('api.php?action=swipe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic_id: id, direction: dir })
+        });
+        const data = await res.json();
+        renderPreferences(data.liked, data.disliked);
+      }
     } else {
       card.style.transform = '';
       card.querySelector('.swipe-overlay.like').style.opacity    = 0;
