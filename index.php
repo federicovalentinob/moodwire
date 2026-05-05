@@ -382,7 +382,7 @@ function articleClick(e, el) {
       body: JSON.stringify({ tags, direction: 'right', source: 'click', anxiety })
     });
   }
-  window.location.href = url;
+  window.open(url, '_blank');
 }
 
 // 3-state tap: 0=title only → 1=+bullets → 2=+articles → 0
