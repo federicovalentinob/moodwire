@@ -272,26 +272,64 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 let activeAnxiety  = '';
 let activeCategory = '';
 let expandedCards  = new Set();
+let currentOffset  = 0;
+let totalTopics    = 0;
+let isLoading      = false;
+const PAGE_SIZE    = 5;
 
 // ── Fetch & render topics ──────────────────────────────────────────────────
-async function loadTopics() {
-  document.getElementById('feed').innerHTML = '<div id="loader">Loading…</div>';
-  const params = new URLSearchParams();
+async function loadTopics(reset = true) {
+  if (isLoading) return;
+  if (!reset && currentOffset >= totalTopics) return;
+
+  isLoading = true;
+
+  if (reset) {
+    currentOffset = 0;
+    document.getElementById('feed').innerHTML = '<div id="loader">Loading…</div>';
+  } else {
+    document.getElementById('sentinel').insertAdjacentHTML('beforebegin', '<div id="loader-more" style="text-align:center;padding:16px;color:var(--muted);font-size:13px">Loading…</div>');
+  }
+
+  const params = new URLSearchParams({ limit: PAGE_SIZE, offset: currentOffset });
   if (activeAnxiety)  params.set('anxiety',  activeAnxiety);
   if (activeCategory) params.set('category', activeCategory);
-  const res   = await fetch('api.php?action=topics&' + params);
-  const topics = await res.json();
-  renderFeed(topics);
+
+  const res  = await fetch('api.php?action=topics&' + params);
+  const data = await res.json();
+  totalTopics   = data.total;
+  currentOffset += data.topics.length;
+
+  document.getElementById('loader-more')?.remove();
+
+  if (reset) {
+    document.getElementById('feed').innerHTML =
+      data.topics.map((t, i) => renderCard(t, i)).join('') +
+      '<div id="sentinel" style="height:1px"></div>';
+    document.querySelectorAll('.card').forEach(attachSwipe);
+  } else {
+    const sentinel = document.getElementById('sentinel');
+    data.topics.forEach((t, i) => {
+      sentinel.insertAdjacentHTML('beforebegin', renderCard(t, currentOffset - data.topics.length + i));
+    });
+    document.querySelectorAll('.card:not([data-swipe])').forEach(c => { attachSwipe(c); c.dataset.swipe='1'; });
+  }
+
+  // Update sentinel visibility
+  if (document.getElementById('sentinel'))
+    document.getElementById('sentinel').style.display = currentOffset >= totalTopics ? 'none' : '';
+
+  isLoading = false;
 }
 
-function renderFeed(topics) {
-  const feed = document.getElementById('feed');
-  if (!topics.length) {
-    feed.innerHTML = '<div id="empty">No topics found.</div>';
-    return;
-  }
-  feed.innerHTML = topics.map((t, i) => renderCard(t, i)).join('');
-  document.querySelectorAll('.card').forEach(attachSwipe);
+// IntersectionObserver — load more when sentinel is visible
+const observer = new IntersectionObserver(entries => {
+  if (entries[0].isIntersecting) loadTopics(false);
+}, { rootMargin: '200px' });
+
+function observeSentinel() {
+  const s = document.getElementById('sentinel');
+  if (s) observer.observe(s);
 }
 
 function anxColor(a) {
@@ -427,7 +465,7 @@ document.getElementById('filters').addEventListener('click', e => {
   document.querySelectorAll('.chip[data-group="anxiety"]').forEach(c => c.classList.remove('active'));
   chip.classList.add('active');
   activeAnxiety = chip.dataset.filter;
-  loadTopics();
+  loadTopics(true).then(observeSentinel);
 });
 
 function setCategory(chip) {
@@ -438,7 +476,7 @@ function setCategory(chip) {
     chip.classList.add('active');
     activeCategory = chip.dataset.filter;
   }
-  loadTopics();
+  loadTopics(true).then(observeSentinel);
 }
 
 // ── Swipe gestures ────────────────────────────────────────────────────────
@@ -546,7 +584,7 @@ async function loadPreferences() {
 // ── Init ──────────────────────────────────────────────────────────────────
 loadStats();
 loadPreferences();
-loadTopics();
+loadTopics(true).then(observeSentinel);
 </script>
 </body>
 </html>

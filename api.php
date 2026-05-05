@@ -38,6 +38,17 @@ case 'topics':
     if ($category)             $where[] = 'category = ' . db()->quote($category);
     if ($type)                 $where[] = 'content_type = ' . db()->quote($type);
 
+    $limit  = max(1, min(20, (int)($_GET['limit']  ?? 5)));
+    $offset = max(0, (int)($_GET['offset'] ?? 0));
+
+    // Total count for pagination
+    $total = db()->query('SELECT COUNT(*) FROM (' .
+        'SELECT t.id FROM topics t
+         LEFT JOIN article_topics ato ON ato.topic_id = t.id
+         WHERE ' . implode(' AND ', $where) . '
+         GROUP BY t.id HAVING COUNT(ato.article_id) > 0' .
+    ') x')->fetchColumn();
+
     $sql = 'SELECT t.*,
                    MAX(COALESCE(a.published_at, a.fetched_at)) as latest_article_at
             FROM topics t
@@ -46,7 +57,8 @@ case 'topics':
             WHERE ' . implode(' AND ', $where) . '
             GROUP BY t.id
             HAVING COUNT(ato.article_id) > 0
-            ORDER BY t.anxiety_avg DESC, latest_article_at DESC';
+            ORDER BY t.anxiety_avg DESC, latest_article_at DESC
+            LIMIT ' . $limit . ' OFFSET ' . $offset;
 
     $topics = db()->query($sql)->fetchAll();
 
@@ -80,7 +92,7 @@ case 'topics':
         $topic['anxiety_color']= $topic['anxiety_avg'] >= 7 ? '#dc2626' : ($topic['anxiety_avg'] >= 4 ? '#d97706' : '#16a34a');
         $topic['time_ago']     = time_ago($topic['latest_article_at']);
     }
-    json_out($topics);
+    json_out(['topics' => $topics, 'total' => (int)$total, 'offset' => $offset, 'limit' => $limit]);
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 case 'stats':
