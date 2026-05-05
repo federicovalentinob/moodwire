@@ -608,64 +608,61 @@ async function handleSwipeAction(card, dir, onComplete) {
   }
 }
 
-function makeSwipeable(card, onSwipe) {
-  card.style.touchAction = 'none'; // force inline — Chrome ignores CSS on dynamic elements
-  let startX=null, startY=null, dx=0, dy=0;
-  card.addEventListener('touchstart', e => {
-    startX=e.touches[0].clientX; startY=e.touches[0].clientY; dx=0; dy=0;
+// ── Swipe via event delegation (works for all cards, dynamic or not) ─────
+let _swipeCard=null, _swipeOnSwipe=null, _sx=0, _sy=0, _dx=0, _dy=0;
+
+function setupDelegatedSwipe(container, cardSelector, getHandler) {
+  container.style.touchAction = 'none';
+  container.addEventListener('touchstart', e => {
+    const card = e.target.closest(cardSelector);
+    if (!card) return;
+    _swipeCard = card;
+    _swipeOnSwipe = getHandler(card);
+    _sx=e.touches[0].clientX; _sy=e.touches[0].clientY;
+    _dx=_dy=0;
     card.classList.add('swiping');
   }, {passive:false});
-  card.addEventListener('touchmove', e => {
-    if (startX===null) return;
-    dx=e.touches[0].clientX-startX; dy=e.touches[0].clientY-startY;
+
+  container.addEventListener('touchmove', e => {
+    if (!_swipeCard) return;
     e.preventDefault();
-    const upDom = Math.abs(dy)>Math.abs(dx) && dy<0;
-    const dnDom = Math.abs(dy)>Math.abs(dx) && dy>0;
-    if (upDom || dnDom) {
-      card.style.transform=`translateY(${dy}px)`;
-      card.querySelector('.swipe-overlay.save').style.opacity = dy<0 ? Math.min(-dy/SWIPE_THRESHOLD,1):0;
-      card.querySelector('.swipe-overlay.like').style.opacity=0;
-      card.querySelector('.swipe-overlay.dislike').style.opacity=0;
-    } else {
-      card.style.transform=`translateX(${dx}px) rotate(${dx*0.03}deg)`;
-      card.querySelector('.swipe-overlay.like').style.opacity=dx>0?Math.min(dx/SWIPE_THRESHOLD,1):0;
-      card.querySelector('.swipe-overlay.dislike').style.opacity=dx<0?Math.min(-dx/SWIPE_THRESHOLD,1):0;
-      card.querySelector('.swipe-overlay.save').style.opacity=0;
-    }
+    _dx=e.touches[0].clientX-_sx; _dy=e.touches[0].clientY-_sy;
   }, {passive:false});
-  card.addEventListener('touchend', () => {
+
+  container.addEventListener('touchend', () => {
+    if (!_swipeCard) return;
+    const card=_swipeCard, onSwipe=_swipeOnSwipe;
     card.classList.remove('swiping');
-    const isUp   = dy < -SWIPE_THRESHOLD && Math.abs(dy)>Math.abs(dx);
-    const isDown = dy >  SWIPE_THRESHOLD && Math.abs(dy)>Math.abs(dx);
-    const isHoriz= Math.abs(dx)>=SWIPE_THRESHOLD && Math.abs(dx)>=Math.abs(dy);
-    if (isUp)         onSwipe('up');
-    else if (isDown)  onSwipe('down');
-    else if (isHoriz) onSwipe(dx>0?'right':'left');
-    else {
-      card.style.transform='';
-      ['like','dislike','save'].forEach(c=>card.querySelector('.swipe-overlay.'+c).style.opacity=0);
-    }
-    startX=null;
+    card.style.transition='transform 0.28s ease, opacity 0.28s ease';
+    const isUp   = _dy < -SWIPE_THRESHOLD && Math.abs(_dy)>Math.abs(_dx);
+    const isDown = _dy >  SWIPE_THRESHOLD && Math.abs(_dy)>Math.abs(_dx);
+    const isHoriz= Math.abs(_dx)>=SWIPE_THRESHOLD && Math.abs(_dx)>=Math.abs(_dy);
+    if (isUp)        onSwipe('up');
+    else if (isDown) onSwipe('down');
+    else if (isHoriz) onSwipe(_dx>0?'right':'left');
+    else { card.style.transform=''; }
+    _swipeCard=null; _swipeOnSwipe=null;
   }, {passive:true});
 }
 
-function attachSwipe(card) {
-  makeSwipeable(card, dir => {
-    if (dir==='down') return; // ignore down swipe on main cards
-    handleSwipeAction(card, dir, () => loadReplacement());
-    if (dir!=='up') loadReplacement();
-  });
-}
+// Feed delegation
+setupDelegatedSwipe(document.getElementById('feed'), '.card', card => dir => {
+  if (dir==='down') return;
+  handleSwipeAction(card, dir, () => loadReplacement());
+  if (dir!=='up') loadReplacement();
+});
 
-function attachSwipeOverlay(card, savedId) {
-  makeSwipeable(card, dir => {
-    if (dir==='down') { closeSavedOverlay(); card.style.transform=''; return; }
-    if (dir==='up')   { closeSavedOverlay(); return; } // keep in strip
-    // left/right: act and remove from saved
-    handleSwipeAction(card, dir, () => removeSaved(savedId));
-    setTimeout(() => removeSaved(savedId), 320);
-  });
-}
+// Overlay delegation
+setupDelegatedSwipe(document.getElementById('overlay-content'), '.card', card => dir => {
+  const savedId = overlayActiveId;
+  if (dir==='down') { closeSavedOverlay(); card.style.transform=''; return; }
+  if (dir==='up')   { closeSavedOverlay(); return; }
+  handleSwipeAction(card, dir, () => removeSaved(savedId));
+  setTimeout(() => removeSaved(savedId), 320);
+});
+
+function attachSwipe(card) {} // no-op — delegation handles all cards
+function attachSwipeOverlay(card, savedId) {} // no-op — delegation handles overlay
 
 // ── Preferences ───────────────────────────────────────────────────────────
 function flag(cc) {
