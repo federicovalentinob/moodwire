@@ -573,8 +573,14 @@ function openSaved(id) {
   content.innerHTML = d.html;
   const card = content.querySelector('.card');
   if (card) {
-    card.dataset.state='0';
     card.style.transform=''; card.style.opacity='1'; card.style.transition='';
+    card.dataset.state='2';
+    const bullets=card.querySelector('.card-bullets');
+    const articles=card.querySelector('.articles-section');
+    const hint=card.querySelector('.card-hint');
+    if(bullets)bullets.style.display='';
+    if(articles)articles.style.display='';
+    if(hint)hint.textContent='Swipe to act · down to close';
     attachSwipeOverlay(card, id);
   }
   document.getElementById('saved-overlay').classList.add('open');
