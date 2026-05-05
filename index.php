@@ -295,11 +295,14 @@ function renderCard(t, i) {
   const delay = Math.min(i * 40, 400);
   const bullets = t.bullets.map(b => `<li>${esc(b)}</li>`).join('');
   const articles = t.articles.map(a => {
-    const anx  = parseFloat(a.anxiety ?? 5);
+    const anx   = parseFloat(a.anxiety ?? 5);
     const thumb = a.image_path
       ? `<img src="${esc(a.image_path)}" class="article-thumb" alt="">`
       : `<div class="article-thumb-placeholder"></div>`;
-    return `<a href="${esc(a.url)}" target="_blank" class="article-row">
+    // Store article tags as data attribute (exclude country tags)
+    const artTags = (a.tags ?? '').split(',').map(s=>s.trim()).filter(s=>s && !s.startsWith('country:'));
+    const tagsAttr = esc(JSON.stringify(artTags));
+    return `<a href="${esc(a.url)}" target="_blank" class="article-row" data-tags="${tagsAttr}" onclick="articleClick(event, this)">
       ${thumb}
       <div class="article-info">
         <div class="article-title">${esc(a.title)}</div>
@@ -340,12 +343,37 @@ function renderCard(t, i) {
   </div>`;
 }
 
+// Signal interest — accepts tags array or topic_id
+async function signal(tagsOrId, direction = 'right') {
+  const body = typeof tagsOrId === 'number'
+    ? { topic_id: tagsOrId, direction }
+    : { tags: tagsOrId, direction };
+  if (Array.isArray(tagsOrId) && !tagsOrId.length) return;
+  const res  = await fetch('api.php?action=swipe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (data.liked !== undefined) renderPreferences(data.liked, data.disliked);
+}
+
+// Article click — signal article tags then navigate
+function articleClick(e, el) {
+  e.preventDefault();
+  const tags = JSON.parse(el.dataset.tags ?? '[]');
+  signal(tags, 'right').then(() => window.open(el.href, '_blank'));
+}
+
 // 3-state tap: 0=title only → 1=+bullets → 2=+articles → 0
 function tapCard(id, card) {
   // Don't collapse if user tapped a link
   if (event.target.closest('a')) return;
   const state    = parseInt(card.dataset.state);
   const next     = (state + 1) % 3;
+
+  // First tap = interest signal for the topic
+  if (state === 0) signal(id, 'right');
   const bullets  = card.querySelector('.card-bullets');
   const articles = card.querySelector('.articles-section');
   const hint     = card.querySelector('.card-hint');

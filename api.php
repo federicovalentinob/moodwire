@@ -100,20 +100,23 @@ case 'swipe':
 
     if (!$topic_id || !in_array($direction, ['right','left'])) err('Invalid swipe');
 
-    // Collect tags for this topic from its articles
-    $tags = db()->query("
-        SELECT DISTINCT at2.tag
-        FROM article_tags at2
-        JOIN article_topics ato ON ato.article_id = at2.article_id
-        WHERE ato.topic_id = {$topic_id}
-          AND at2.tag NOT LIKE 'country:%'
-        LIMIT 20
-    ")->fetchAll(PDO::FETCH_COLUMN);
-
-    // Also add category and type as tags
-    $meta = db()->query("SELECT category, content_type FROM topics WHERE id = {$topic_id}")->fetch();
-    if ($meta['category'])     $tags[] = strtolower($meta['category']);
-    if ($meta['content_type']) $tags[] = $meta['content_type'];
+    // Accept either a topic_id or a raw tags array
+    if (!empty($body['tags']) && is_array($body['tags'])) {
+        $tags = array_filter(array_map('trim', $body['tags']));
+    } else {
+        // Collect tags from topic
+        $tags = db()->query("
+            SELECT DISTINCT at2.tag
+            FROM article_tags at2
+            JOIN article_topics ato ON ato.article_id = at2.article_id
+            WHERE ato.topic_id = {$topic_id}
+              AND at2.tag NOT LIKE 'country:%'
+            LIMIT 20
+        ")->fetchAll(PDO::FETCH_COLUMN);
+        $meta = db()->query("SELECT category, content_type FROM topics WHERE id = {$topic_id}")->fetch();
+        if ($meta['category'])     $tags[] = strtolower($meta['category']);
+        if ($meta['content_type']) $tags[] = $meta['content_type'];
+    }
 
     $list = $direction === 'right' ? 'liked' : 'disliked';
 
