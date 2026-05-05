@@ -57,7 +57,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 
 /* ── Feed ───────────────────────────────────────────────────────────────── */
 #feed {
-  flex:1; overflow-y:auto; padding:8px 12px;
+  flex:1; overflow-y:auto; padding:6px 10px 10px;
   -webkit-overflow-scrolling:touch; scrollbar-width:none;
 }
 #feed::-webkit-scrollbar { display:none; }
@@ -65,13 +65,15 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 /* ── Card ───────────────────────────────────────────────────────────────── */
 .card {
   background:var(--surface); border-radius:var(--radius);
-  margin-bottom:10px; overflow:hidden;
+  margin-bottom:8px; overflow:hidden;
   border-left:4px solid var(--border);
-  animation:fadeUp 0.25s ease both;
 }
-@keyframes fadeUp {
-  from { opacity:0; transform:translateY(12px); }
-  to   { opacity:1; transform:translateY(0); }
+.card.slide-in {
+  animation:slideIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+@keyframes slideIn {
+  from { opacity:0; transform:translateY(24px) scale(0.97); }
+  to   { opacity:1; transform:translateY(0) scale(1); }
 }
 
 .card-header {
@@ -269,72 +271,62 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 </div>
 
 <script>
-let activeAnxiety  = '';
-let activeCategory = '';
-let expandedCards  = new Set();
-let currentOffset  = 0;
-let totalTopics    = 0;
-let isLoading      = false;
-const PAGE_SIZE    = 5;
-const shownIds     = new Set();
+let activeAnxiety   = '';
+let activeCategory  = '';
+let isLoading       = false;
+let nextPersonalized = true; // alternates for replacements
+const STACK_SIZE    = 5;
+const shownIds      = new Set();
 
-// ── Fetch & render topics ──────────────────────────────────────────────────
-async function loadTopics(reset = true) {
-  if (isLoading) return;
-  if (!reset && currentOffset >= totalTopics) return;
-
-  isLoading = true;
-
-  if (reset) {
-    currentOffset = 0;
-    shownIds.clear();
-    document.getElementById('feed').innerHTML = '<div id="loader">Loading…</div>';
-  } else {
-    document.getElementById('sentinel').insertAdjacentHTML('beforebegin', '<div id="loader-more" style="text-align:center;padding:16px;color:var(--muted);font-size:13px">Loading…</div>');
-  }
-
-  const params = new URLSearchParams({ limit: PAGE_SIZE, offset: currentOffset });
-  if (activeAnxiety)       params.set('anxiety',  activeAnxiety);
-  if (activeCategory)      params.set('category', activeCategory);
-  if (shownIds.size)       params.set('exclude',  [...shownIds].join(','));
+// ── Fetch topics (initial stack or single replacement) ────────────────────
+async function fetchTopics(count = STACK_SIZE, mode = 'mixed') {
+  const params = new URLSearchParams({ limit: count });
+  if (activeAnxiety)  params.set('anxiety',  activeAnxiety);
+  if (activeCategory) params.set('category', activeCategory);
+  if (shownIds.size)  params.set('exclude',  [...shownIds].join(','));
+  if (mode !== 'mixed') params.set('mode', mode);
 
   const res  = await fetch('api.php?action=topics&' + params);
   const data = await res.json();
-  totalTopics   = data.total;
-  currentOffset += data.topics.length;
   data.topics.forEach(t => shownIds.add(t.id));
+  return data.topics;
+}
 
-  document.getElementById('loader-more')?.remove();
+// ── Load initial stack ────────────────────────────────────────────────────
+async function loadTopics() {
+  if (isLoading) return;
+  isLoading = true;
+  shownIds.clear();
+  document.getElementById('feed').innerHTML = '<div id="loader">Loading…</div>';
 
-  if (reset) {
-    document.getElementById('feed').innerHTML =
-      data.topics.map((t, i) => renderCard(t, i)).join('') +
-      '<div id="sentinel" style="height:1px"></div>';
-    document.querySelectorAll('.card').forEach(attachSwipe);
-  } else {
-    const sentinel = document.getElementById('sentinel');
-    data.topics.forEach((t, i) => {
-      sentinel.insertAdjacentHTML('beforebegin', renderCard(t, currentOffset - data.topics.length + i));
-    });
-    document.querySelectorAll('.card:not([data-swipe])').forEach(c => { attachSwipe(c); c.dataset.swipe='1'; });
+  const topics = await fetchTopics(STACK_SIZE);
+
+  if (!topics.length) {
+    document.getElementById('feed').innerHTML = '<div id="empty">No topics found.</div>';
+    isLoading = false; return;
   }
-
-  // Update sentinel visibility
-  if (document.getElementById('sentinel'))
-    document.getElementById('sentinel').style.display = currentOffset >= totalTopics ? 'none' : '';
-
+  document.getElementById('feed').innerHTML = topics.map(t => renderCard(t)).join('');
+  document.querySelectorAll('.card').forEach(c => attachSwipe(c));
   isLoading = false;
 }
 
-// IntersectionObserver — load more when sentinel is visible
-const observer = new IntersectionObserver(entries => {
-  if (entries[0].isIntersecting) loadTopics(false);
-}, { rootMargin: '200px' });
+// ── Load one replacement card ─────────────────────────────────────────────
+async function loadReplacement() {
+  const mode = nextPersonalized ? 'personalized' : 'random';
+  nextPersonalized = !nextPersonalized;
 
-function observeSentinel() {
-  const s = document.getElementById('sentinel');
-  if (s) observer.observe(s);
+  const topics = await fetchTopics(1, mode);
+  if (!topics.length) return;
+
+  const html = renderCard(topics[0]);
+  const tmp  = document.createElement('div');
+  tmp.innerHTML = html;
+  const card = tmp.firstElementChild;
+  card.classList.add('slide-in');
+  document.getElementById('feed').appendChild(card);
+  attachSwipe(card);
 }
+
 
 function anxColor(a) {
   const idx = Math.min(9, Math.max(0, Math.floor(a)));
@@ -469,7 +461,7 @@ document.getElementById('filters').addEventListener('click', e => {
   document.querySelectorAll('.chip[data-group="anxiety"]').forEach(c => c.classList.remove('active'));
   chip.classList.add('active');
   activeAnxiety = chip.dataset.filter;
-  loadTopics(true).then(observeSentinel);
+  loadTopics();
 });
 
 function setCategory(chip) {
@@ -480,7 +472,7 @@ function setCategory(chip) {
     chip.classList.add('active');
     activeCategory = chip.dataset.filter;
   }
-  loadTopics(true).then(observeSentinel);
+  loadTopics();
 }
 
 // ── Swipe gestures ────────────────────────────────────────────────────────
@@ -519,7 +511,7 @@ function attachSwipe(card) {
       card.style.transform = `translateX(${dir === 'right' ? '120vw' : '-120vw'}) rotate(${dir === 'right' ? 20 : -20}deg)`;
       card.style.opacity = '0';
       setTimeout(() => card.remove(), 300);
-      // Only signal tags on swipe right if card was never opened (state 0)
+      // Only signal tags on swipe right if card was never opened
       const wasUntouched = parseInt(card.dataset.state) === 0;
       if (dir === 'left' || wasUntouched) {
         const res = await fetch('api.php?action=swipe', {
@@ -529,7 +521,9 @@ function attachSwipe(card) {
         });
         const data = await res.json();
         renderPreferences(data.liked, data.disliked);
+        if (data.anxiety_avg !== undefined) renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
       }
+      loadReplacement();
     } else {
       card.style.transform = '';
       card.querySelector('.swipe-overlay.like').style.opacity    = 0;
@@ -588,7 +582,7 @@ async function loadPreferences() {
 // ── Init ──────────────────────────────────────────────────────────────────
 loadStats();
 loadPreferences();
-loadTopics(true).then(observeSentinel);
+loadTopics();
 </script>
 </body>
 </html>

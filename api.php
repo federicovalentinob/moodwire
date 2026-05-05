@@ -71,7 +71,9 @@ case 'topics':
     $disliked = $_SESSION['disliked'] ?? [];
     $has_prefs = !empty($liked) || !empty($disliked);
 
-    if ($has_prefs) {
+    $mode = $_GET['mode'] ?? 'mixed'; // 'mixed', 'personalized', 'random'
+
+    if ($has_prefs && $mode !== 'random') {
         // Get tags for each remaining topic
         $ids = array_column($remaining, 'id');
         $ids_str = implode(',', array_map('intval', $ids));
@@ -121,6 +123,10 @@ case 'topics':
             elseif (isset($default_picks[$di]))               $page[] = $default_picks[$di++];
             elseif (isset($personal_picks[$pi]))              $page[] = $personal_picks[$pi++];
         }
+    } elseif ($mode === 'random') {
+        // Pure random from remaining
+        shuffle($remaining);
+        $page = array_slice($remaining, 0, $limit);
     } else {
         $page = array_slice($remaining, 0, $limit);
     }
