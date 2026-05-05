@@ -627,6 +627,13 @@ function setupDelegatedSwipe(container, cardSelector, getHandler) {
     if (!_swipeCard) return;
     e.preventDefault();
     _dx=e.touches[0].clientX-_sx; _dy=e.touches[0].clientY-_sy;
+    // Apply visual movement
+    _swipeCard.style.transition = 'none';
+    if (Math.abs(_dy) > Math.abs(_dx)) {
+      _swipeCard.style.transform = `translateY(${_dy}px)`;
+    } else {
+      _swipeCard.style.transform = `translateX(${_dx}px) rotate(${_dx*0.03}deg)`;
+    }
   }, {passive:false});
 
   container.addEventListener('touchend', () => {
