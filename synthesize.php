@@ -172,6 +172,8 @@ $msg = "{$saved_new} new topics created, {$saved_existing} existing topics updat
 log_action('synthesize', 'success', $msg);
 cli_log("\nDone: {$msg}");
 
-function cli_log(string $msg): void {
-    if (php_sapi_name() === 'cli') echo $msg . "\n";
+if (!function_exists('cli_log')) {
+    function cli_log(string $msg): void {
+        if (php_sapi_name() === 'cli') echo $msg . "\n";
+    }
 }

@@ -17,7 +17,7 @@ if ($step) {
 
     if (isset($scripts[$step])) {
         $script = __DIR__ . '/' . $scripts[$step];
-        exec("php {$script} >> /tmp/moodwire_{$step}.log 2>&1 &");
+        exec("php " . escapeshellarg($script) . " >> /tmp/moodwire_{$step}.log 2>&1 &");
         $message = "Step '{$step}' started in background. Refresh to see progress in logs.";
         log_action($step, 'success', 'Started via run.php');
     }
