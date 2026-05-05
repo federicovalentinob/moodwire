@@ -29,25 +29,25 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
 #header {
-  padding: calc(var(--safe-top) + 12px) 16px 0;
+  padding: calc(var(--safe-top) + 8px) 12px 0;
   background: var(--bg);
   flex-shrink: 0;
 }
-#header h1 { font-size:22px; font-weight:800; letter-spacing:-0.5px; margin-bottom:12px; }
+#header h1 { font-size:20px; font-weight:800; letter-spacing:-0.5px; margin-bottom:8px; }
 #header h1 span { color:var(--accent); }
 
 /* ── Filter chips ───────────────────────────────────────────────────────── */
 #filters {
-  display:flex; gap:8px; overflow-x:auto; padding-bottom:12px;
+  display:flex; gap:6px; overflow-x:auto; padding-bottom:8px;
   scrollbar-width:none; -webkit-overflow-scrolling:touch;
 }
 #filters::-webkit-scrollbar { display:none; }
 .chip {
-  flex-shrink:0; padding:6px 14px; border-radius:20px;
+  flex-shrink:0; padding:4px 10px; border-radius:14px;
   border:1.5px solid var(--border); background:transparent;
-  color:var(--muted); font-size:13px; font-weight:600;
+  color:var(--muted); font-size:12px; font-weight:600;
   cursor:pointer; white-space:nowrap; transition:all 0.15s;
-  min-width:64px; text-align:center;
+  min-width:48px; text-align:center;
 }
 .chip.active        { background:var(--accent); border-color:var(--accent); color:#fff; }
 .chip.active.low    { background:var(--low);  border-color:var(--low);  }
