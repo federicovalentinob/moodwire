@@ -218,7 +218,10 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 
   <!-- Header -->
   <div id="header">
-    <h1>Mood<span>wire</span></h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h1 style="margin:0">Mood<span>wire</span></h1>
+      <button id="clear-btn" onclick="clearPreferences()" style="display:none;background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:600;padding:4px 12px;border-radius:10px;cursor:pointer">Clear</button>
+    </div>
     <div id="filters">
       <button class="chip active" data-filter="" data-group="anxiety">All</button>
       <button class="chip low"  data-filter="low"    data-group="anxiety">Low</button>
@@ -231,10 +234,6 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 
   <!-- Preferences -->
   <div id="prefs" style="display:none">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted)">Your interests</span>
-      <button onclick="clearPreferences()" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;cursor:pointer">Clear</button>
-    </div>
     <div class="pref-row">
       <span class="pref-label like">✓</span>
       <div class="pref-tags" id="liked-tags"></div>
@@ -284,12 +283,7 @@ function renderFeed(topics) {
     return;
   }
   feed.innerHTML = topics.map((t, i) => renderCard(t, i)).join('');
-  // Restore expanded state
-  expandedCards.forEach(id => {
-    const btn  = feed.querySelector(`.articles-toggle[data-id="${id}"]`);
-    const list = feed.querySelector(`.articles-list[data-id="${id}"]`);
-    if (btn && list) { btn.classList.add('open'); list.classList.add('open'); }
-  });
+  document.querySelectorAll('.card').forEach(attachSwipe);
 }
 
 function anxColor(a) {
@@ -454,9 +448,10 @@ function attachSwipe(card) {
 
 // ── Preferences ───────────────────────────────────────────────────────────
 function renderPreferences(liked, disliked) {
-  const hasPrefs = liked.length || disliked.length;
+  const hasPrefs = Object.keys(liked ?? {}).length || Object.keys(disliked ?? {}).length;
   document.getElementById('prefs').style.display         = hasPrefs ? '' : 'none';
   document.getElementById('prefs-divider').style.display = hasPrefs ? '' : 'none';
+  document.getElementById('clear-btn').style.display     = hasPrefs ? '' : 'none';
 
   const likedEntries    = Object.entries(liked    ?? {}).sort((a,b) => b[1]-a[1]).slice(0,15);
   const dislikedEntries = Object.entries(disliked ?? {}).sort((a,b) => b[1]-a[1]).slice(0,15);
@@ -483,12 +478,6 @@ async function loadPreferences() {
   renderPreferences(data.liked, data.disliked);
 }
 
-// Attach swipe after rendering
-const _origRenderFeed = renderFeed;
-renderFeed = function(topics) {
-  _origRenderFeed(topics);
-  document.querySelectorAll('.card').forEach(attachSwipe);
-};
 
 // ── Init ──────────────────────────────────────────────────────────────────
 loadStats();
