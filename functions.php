@@ -167,6 +167,36 @@ function fetch_rss(string $url): array {
     return $articles;
 }
 
+function fetch_og_image(string $url): ?string {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 7,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS      => 5,
+        CURLOPT_USERAGENT      => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        CURLOPT_HTTPHEADER     => ['Accept: text/html,application/xhtml+xml', 'Accept-Language: en-US,en;q=0.9'],
+        CURLOPT_BUFFERSIZE     => 65536,
+    ]);
+    $html = curl_exec($ch);
+    @curl_close($ch);
+    if (!$html) return null;
+
+    // og:image — try both attribute orderings
+    if (preg_match('/<meta\s[^>]*property=["\']og:image["\'][^>]*content=["\']([^"\']+)["\'](?:[^>]*)?\/?>/i', $html, $m) ||
+        preg_match('/<meta\s[^>]*content=["\']([^"\']{10,})["\'][^>]*property=["\']og:image["\'](?:[^>]*)?\/?>/i', $html, $m)) {
+        $img = html_entity_decode(trim($m[1]));
+        if (filter_var($img, FILTER_VALIDATE_URL)) return download_thumbnail($img);
+    }
+    // twitter:image fallback
+    if (preg_match('/<meta\s[^>]*name=["\']twitter:image(?::src)?["\'][^>]*content=["\']([^"\']+)["\'](?:[^>]*)?\/?>/i', $html, $m) ||
+        preg_match('/<meta\s[^>]*content=["\']([^"\']{10,})["\'][^>]*name=["\']twitter:image(?::src)?["\'](?:[^>]*)?\/?>/i', $html, $m)) {
+        $img = html_entity_decode(trim($m[1]));
+        if (filter_var($img, FILTER_VALIDATE_URL)) return download_thumbnail($img);
+    }
+    return null;
+}
+
 function download_thumbnail(string $image_url): ?string {
     $ext      = strtolower(pathinfo(parse_url($image_url, PHP_URL_PATH), PATHINFO_EXTENSION)) ?: 'jpg';
     if (!in_array($ext, ['jpg','jpeg','png','webp','gif'])) $ext = 'jpg';
@@ -191,29 +221,25 @@ function download_thumbnail(string $image_url): ?string {
     if (!$src) return null;
 
     $sw = imagesx($src); $sh = imagesy($src);
-    $tw = 300; $th = 180;
-    $ratio = min($tw / $sw, $th / $sh);
-    $nw = (int)($sw * $ratio); $nh = (int)($sh * $ratio);
+    $tw = 600; $th = 360;
+    // Crop-to-fill: scale so image covers target, then centre-crop
+    $ratio  = max($tw / $sw, $th / $sh);
+    $src_w  = (int)($tw / $ratio);   // how many source px wide
+    $src_h  = (int)($th / $ratio);   // how many source px tall
+    $src_x  = (int)(($sw - $src_w) / 2);  // centre-crop offset x
+    $src_y  = (int)(($sh - $src_h) / 2);  // centre-crop offset y
 
     $dst = imagecreatetruecolor($tw, $th);
-    $bg  = imagecolorallocate($dst, 240, 240, 240);
-    imagefill($dst, 0, 0, $bg);
-    $ox = (int)(($tw - $nw) / 2); $oy = (int)(($th - $nh) / 2);
-    imagecopyresampled($dst, $src, $ox, $oy, 0, 0, $nw, $nh, $sw, $sh);
-    imagejpeg($dst, $path, 80);
+    imagecopyresampled($dst, $src, 0, 0, $src_x, $src_y, $tw, $th, $src_w, $src_h);
+    imagejpeg($dst, $path, 85);
 
     return 'thumbs/' . $filename;
 }
 
 function save_article(int $feed_id, array $article): bool {
     try {
-        // Skip articles published more than 24h ago
-        if (!empty($article['published_at']) && strtotime($article['published_at']) < time() - 86400) {
-            return false;
-        }
-
-        // Skip if same title already exists (published within last 24h)
-        $exists = db()->prepare('SELECT COUNT(*) FROM articles WHERE title = ? AND fetched_at > NOW() - INTERVAL 24 HOUR');
+        // Skip if same title already exists in DB
+        $exists = db()->prepare('SELECT COUNT(*) FROM articles WHERE title = ?');
         $exists->execute([$article['title']]);
         if ($exists->fetchColumn() > 0) return false;
 
@@ -329,7 +355,7 @@ function call_perplexity(string $prompt, string $system = ''): string {
 
     $payload = json_encode([
         'model'      => PERPLEXITY_MODEL,
-        'max_tokens' => 4096,
+        'max_tokens' => 16000,
         'messages'   => $messages,
     ]);
 
@@ -412,7 +438,7 @@ function save_topic(string $title, array $bullets, float $anxiety_avg, array $ar
     if (!in_array($content_type, $valid_types)) $content_type = 'informative';
     $valid_cats = ['Politics','Geopolitics','Economy','Technology','Science','Health','Society','Crime','Environment','Sports','Entertainment','Travel','Food'];
     if (!in_array($category, $valid_cats)) $category = null;
-    db()->prepare('INSERT INTO topics (title, anxiety_avg, content_type, category) VALUES (?, ?, ?, ?)')->execute([$title, $anxiety_avg, $content_type, $category]);
+    db()->prepare('INSERT INTO topics (title, anxiety_avg, content_type, category, is_new) VALUES (?, ?, ?, ?, 1)')->execute([$title, $anxiety_avg, $content_type, $category]);
     $topic_id = (int) db()->lastInsertId();
 
     $st = db()->prepare('INSERT INTO topic_bullets (topic_id, bullet, display_order) VALUES (?, ?, ?)');
@@ -442,7 +468,7 @@ function regenerate_stale_bullets(): void {
         FROM topics t
         LEFT JOIN article_topics ato ON ato.topic_id = t.id
         GROUP BY t.id
-        HAVING bullet_count > article_count OR article_count = 0
+        HAVING bullet_count = 0 OR bullet_count > article_count
     ')->fetchAll();
 
     $stale = [];

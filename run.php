@@ -78,16 +78,16 @@ $logs = db()->query('SELECT * FROM logs ORDER BY created_at DESC LIMIT 30')->fet
 
   <div class="pipeline">
 
-    <div class="pipeline-step">
+    <div class="pipeline-step" style="flex-wrap:wrap;gap:12px">
       <div class="step-num">1</div>
       <div class="step-info">
         <h3>Fetch</h3>
         <p>Pull latest articles from all active RSS feeds</p>
       </div>
-      <form method="POST">
-        <input type="hidden" name="step" value="fetch">
-        <button class="btn">Run</button>
-      </form>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+        <button id="fetch-btn" class="btn" onclick="runFetch(event)">Run</button>
+        <div id="fetch-result" style="display:none;font-size:12px;font-weight:600;display:none;gap:10px;white-space:nowrap"></div>
+      </div>
     </div>
 
     <div class="pipeline-step">
@@ -151,5 +151,32 @@ $logs = db()->query('SELECT * FROM logs ORDER BY created_at DESC LIMIT 30')->fet
   </table>
 
 </div>
+
+<script>
+async function runFetch(e) {
+  e.preventDefault();
+  const btn = document.getElementById('fetch-btn');
+  const result = document.getElementById('fetch-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching…';
+  result.style.display = 'none';
+  try {
+    const res  = await fetch('fetch.php');
+    const data = await res.json();
+    result.innerHTML =
+      `<span style="color:#dc2626">− ${data.removed} removed</span>` +
+      `<span style="color:#16a34a">+ ${data.total_new} new</span>` +
+      `<span style="color:#6b7280">= ${data.total_articles} total</span>`;
+    result.style.display = 'flex';
+    btn.textContent = 'Done ✓';
+    setTimeout(() => { btn.disabled = false; btn.textContent = 'Run'; location.reload(); }, 3000);
+  } catch(err) {
+    btn.disabled = false;
+    btn.textContent = 'Run';
+    result.innerHTML = '<span style="color:#dc2626">Error — check console</span>';
+    result.style.display = 'flex';
+  }
+}
+</script>
 </body>
 </html>

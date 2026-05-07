@@ -6,184 +6,202 @@
 <title>Moodwire</title>
 <style>
 :root {
-  --bg:      #f5f5f7;
-  --surface: #ffffff;
-  --border:  #e4e4e7;
-  --text:    #111827;
-  --muted:   #6b7280;
-  --accent:  #2563eb;
-  --low:     #16a34a;
-  --mid:     #d97706;
-  --high:    #dc2626;
-  --radius:  16px;
+  --bg:       #f2f2f2;
+  --surface:  #ffffff;
+  --border:   #e8e8e8;
+  --text:     #0d0d0d;
+  --muted:    #888;
+  --accent:   #e11d48;
+  --low:      #16a34a;
+  --mid:      #d97706;
+  --high:     #dc2626;
+  --radius:   16px;
+  --shadow:   0 1px 3px rgba(0,0,0,0.05), 0 4px 14px rgba(0,0,0,0.07);
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bot: env(safe-area-inset-bottom, 0px);
 }
 
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-
 html, body { height:100%; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; overflow:hidden; }
-
-/* ── Layout ─────────────────────────────────────────────────────────────── */
 #app { display:flex; flex-direction:column; height:100vh; height:100dvh; }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
 #header {
-  padding: calc(var(--safe-top) + 8px) 12px 0;
-  background: var(--bg);
+  padding: calc(var(--safe-top) + 16px) 16px 0;
+  background: var(--surface);
   flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
 }
-#header h1 { font-size:20px; font-weight:800; letter-spacing:-0.5px; margin-bottom:8px; }
+#header-title-row { display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:14px; }
+#header h1 { font-size:32px; font-weight:900; letter-spacing:-1.5px; line-height:1; }
 #header h1 span { color:var(--accent); }
+#toggle-prefs-btn {
+  background:none; border:1.5px solid var(--border); color:var(--muted);
+  font-size:11px; font-weight:700; padding:5px 12px; border-radius:20px;
+  cursor:pointer; letter-spacing:0.2px; transition:all 0.15s; margin-bottom:3px;
+}
+#toggle-prefs-btn:active { opacity:0.7; }
+#toggle-prefs-btn.open { background:var(--text); border-color:var(--text); color:#fff; }
 
-/* ── Filter chips ───────────────────────────────────────────────────────── */
+/* ── Anxiety widget ─────────────────────────────────────────────────────── */
+#anxiety-widget { border-top:1px solid var(--border); padding:10px 0 0; margin-bottom:4px; }
+#anxiety-widget-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+#anxiety-widget-title { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:1.2px; color:var(--muted); }
+#anxiety-chips { display:flex; gap:4px; }
+.anx-chip {
+  padding:4px 11px; border-radius:20px;
+  border:1.5px solid var(--border); background:transparent;
+  color:var(--muted); font-size:11px; font-weight:700;
+  cursor:pointer; transition:all 0.15s; height:26px;
+  display:inline-flex; align-items:center;
+}
+.anx-chip.active        { background:#0d0d0d; border-color:#0d0d0d; color:#fff; }
+.anx-chip.active.low    { background:var(--low);  border-color:var(--low);  }
+.anx-chip.active.mid    { background:var(--mid);  border-color:var(--mid);  }
+.anx-chip.active.high   { background:var(--high); border-color:var(--high); }
+.anx-row { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.anx-row:last-child { margin-bottom:10px; }
+.anx-row-label { font-size:9px; font-weight:800; width:38px; flex-shrink:0; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px; }
+.anx-track { flex:1; height:6px; background:#ebebeb; border-radius:3px; overflow:hidden; }
+.anx-fill { height:100%; border-radius:3px; transition:width 0.6s cubic-bezier(0.22,1,0.36,1),background 0.4s; width:0%; }
+.anx-num { font-size:13px; font-weight:800; min-width:26px; text-align:right; letter-spacing:-0.3px; }
+
+/* ── Category chips ─────────────────────────────────────────────────────── */
 #filters {
-  display:flex; gap:6px; overflow-x:auto; padding-bottom:8px;
-  scrollbar-width:none; -webkit-overflow-scrolling:touch;
-  align-items:center; flex-wrap:nowrap;
+  display:flex; gap:6px; overflow-x:auto; padding-bottom:10px;
+  scrollbar-width:none; -webkit-overflow-scrolling:touch; align-items:center; flex-wrap:nowrap;
 }
 #filters::-webkit-scrollbar { display:none; }
 #cat-chips { display:contents; }
 .chip {
-  flex-shrink:0; padding:4px 10px; border-radius:14px;
+  flex-shrink:0; padding:5px 12px; border-radius:20px;
   border:1.5px solid var(--border); background:transparent;
   color:var(--muted); font-size:12px; font-weight:600;
   cursor:pointer; white-space:nowrap; transition:all 0.15s;
-  min-width:44px; text-align:center; height:28px;
-  display:inline-flex; align-items:center; justify-content:center;
+  height:28px; display:inline-flex; align-items:center; gap:3px;
 }
-.chip.active        { background:var(--accent); border-color:var(--accent); color:#fff; }
-.chip.active.low    { background:var(--low);  border-color:var(--low);  }
-.chip.active.mid    { background:var(--mid);  border-color:var(--mid);  }
-.chip.active.high   { background:var(--high); border-color:var(--high); }
-.chip-sep { flex-shrink:0; width:1px; background:var(--border); margin:4px 4px; }
+.chip.active { background:#0d0d0d; border-color:#0d0d0d; color:#fff; }
 
 /* ── Feed ───────────────────────────────────────────────────────────────── */
-#feed {
-  flex:1; overflow:hidden; padding:6px 10px 10px;
-  touch-action:none;
-}
+#feed { flex:1; overflow-y:auto; padding:10px 12px 12px; touch-action:pan-y; -webkit-overflow-scrolling:touch; }
 
 /* ── Card ───────────────────────────────────────────────────────────────── */
 .card {
   background:var(--surface); border-radius:var(--radius);
-  margin-bottom:8px; overflow:hidden;
-  border-left:4px solid var(--border);
+  margin-bottom:10px; overflow:hidden;
+  box-shadow:var(--shadow); border:1px solid var(--border);
+  position:relative; cursor:pointer; user-select:none; touch-action:pan-y;
 }
-.card.slide-in {
-  animation:slideIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
-}
+.card.slide-in { animation:slideIn 0.35s cubic-bezier(0.22,1,0.36,1) both; }
 @keyframes slideIn {
-  from { opacity:0; transform:translateY(24px) scale(0.97); }
-  to   { opacity:1; transform:translateY(0) scale(1); }
+  from { opacity:0; transform:translateY(18px) scale(0.98); }
+  to   { opacity:1; transform:translateY(0)    scale(1); }
+}
+#saved-overlay-card .card { touch-action:none; }
+.card.swiping { transition:none !important; }
+.swipe-overlay { display:none; }
+
+/* accent strip at top of card */
+.card-accent { height:3px; width:100%; display:block; }
+
+/* hero image */
+.card-hero { width:100%; height:168px; overflow:hidden; position:relative; background:#ebebeb; }
+.card-hero img { width:100%; height:100%; object-fit:cover; display:block; }
+.card-hero-badge {
+  position:absolute; bottom:8px; right:10px;
+  font-size:10px; font-weight:800; padding:3px 9px; border-radius:6px;
+  color:#fff; letter-spacing:0.2px; text-shadow:0 1px 3px rgba(0,0,0,0.4);
 }
 
-.card-header {
-  padding:12px 14px 0;
+/* card body */
+.card-body { padding:12px 14px 12px; }
+.card-eyebrow { display:flex; align-items:center; gap:6px; margin-bottom:6px; flex-wrap:wrap; }
+.badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; letter-spacing:0.3px; text-transform:uppercase; }
+.badge-cat { background:#f0f0f0; color:#555; }
+.badge-geo { background:#ede9fe; color:#7c3aed; }
+.badge-new { background:#dcfce7; color:#15803d; }
+.card-time { font-size:11px; color:var(--muted); margin-left:auto; }
+.card-title { font-size:18px; font-weight:800; line-height:1.25; letter-spacing:-0.4px; color:var(--text); margin-bottom:8px; }
+.card-foot { display:flex; align-items:center; justify-content:space-between; }
+.card-article-count { font-size:11px; color:var(--muted); font-weight:500; }
+.anxiety-pip { font-size:10px; font-weight:800; padding:3px 8px; border-radius:6px; color:#fff; flex-shrink:0; }
+.card-save-btn {
+  background:none; border:none; cursor:pointer; padding:4px;
+  color:var(--muted); border-radius:6px; display:flex; align-items:center;
+  transition:color 0.15s, background 0.15s; flex-shrink:0;
+}
+.card-save-btn:hover { color:var(--text); background:rgba(0,0,0,0.05); }
+.card-save-btn.saved { color:var(--accent); }
+
+/* expanded bullets */
+.card-bullets { border-top:1px solid var(--border); padding:10px 14px 12px; }
+.card-bullets li { font-size:14px; color:#333; line-height:1.55; padding:3px 0 3px 16px; list-style:none; position:relative; }
+.card-bullets li::before { content:'·'; position:absolute; left:2px; color:var(--muted); font-size:20px; line-height:0.85; }
+
+/* tap hint */
+.card-tap-hint {
+  padding:8px 14px 10px;
+  font-size:11px; font-weight:600; color:var(--muted);
+  text-align:center; letter-spacing:0.2px;
+}
+
+/* articles section */
+.articles-section { border-top:1px solid var(--border); }
+.articles-header {
   display:flex; justify-content:space-between; align-items:center;
+  padding:8px 14px; font-size:9px; font-weight:800;
+  color:var(--muted); text-transform:uppercase; letter-spacing:1px;
 }
-.card-meta { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
-.badge {
-  font-size:10px; font-weight:700; padding:3px 8px;
-  border-radius:10px; letter-spacing:0.3px; text-transform:uppercase;
-}
-.badge-cat   { background:#f1f5f9; color:#64748b; }
-.badge-geo   { background:#ede9fe; color:#7c3aed; }
-.badge-type  { background:#e0f2fe; color:#0369a1; }
-.card-time   { font-size:11px; color:var(--muted); }
-
-.anxiety-pip {
-  font-size:11px; font-weight:700; padding:3px 10px;
-  border-radius:10px; color:white; flex-shrink:0;
-}
-
-.card-title {
-  padding:10px 14px 2px;
-  font-size:18px; font-weight:700; line-height:1.3;
-  letter-spacing:-0.3px;
-}
-
-.card-bullets { padding:8px 14px 4px; }
-.card-bullets li {
-  font-size:14px; color:#374151; line-height:1.5;
-  padding:3px 0; list-style:none;
-  padding-left:14px; position:relative;
-}
-.card-bullets li::before { content:'·'; position:absolute; left:2px; color:var(--muted); }
-
-/* ── Articles toggle ────────────────────────────────────────────────────── */
-.articles-toggle {
-  display:flex; align-items:center; gap:6px;
-  padding:10px 14px; color:var(--muted); font-size:13px;
-  font-weight:600; cursor:pointer; border:none; background:none;
-  width:100%; text-align:left;
-  border-top:1px solid var(--border); margin-top:6px;
-}
-.articles-toggle .arrow { transition:transform 0.2s; display:inline-block; }
-.articles-toggle.open .arrow { transform:rotate(90deg); }
-.articles-toggle .count-badge {
-  margin-left:auto; background:var(--border);
-  padding:2px 8px; border-radius:10px; font-size:11px;
-}
-
-.articles-list { display:none; }
-.articles-list.open { display:block; }
-
 .article-row {
-  display:flex; align-items:center; gap:10px;
-  padding:10px 14px; text-decoration:none; color:var(--text);
-  border-top:1px solid var(--border);
-  transition:background 0.1s;
-  -webkit-tap-highlight-color:transparent;
+  display:flex; align-items:center; gap:10px; padding:10px 14px;
+  text-decoration:none; color:var(--text); border-top:1px solid var(--border);
+  transition:background 0.1s; -webkit-tap-highlight-color:transparent;
 }
-.article-row:active { background:rgba(0,0,0,0.04); }
-
-.article-thumb {
-  width:52px; height:36px; object-fit:cover;
-  border-radius:6px; flex-shrink:0; background:var(--border);
-}
-.article-thumb-placeholder {
-  width:52px; height:36px; border-radius:6px;
-  flex-shrink:0; background:var(--border);
-}
+.article-row:active { background:rgba(0,0,0,0.025); }
+.article-thumb { width:54px; height:38px; object-fit:cover; border-radius:8px; flex-shrink:0; background:var(--border); }
+.article-thumb-placeholder { width:54px; height:38px; border-radius:8px; flex-shrink:0; background:#f0f0f0; }
 .article-info { flex:1; min-width:0; }
-.article-title { font-size:13px; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.article-src   { font-size:11px; color:var(--muted); margin-top:2px; }
-.article-anx   { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.article-title { font-size:13px; line-height:1.4; font-weight:500; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.article-src { font-size:11px; color:var(--muted); margin-top:2px; }
+.article-anx { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
 
 /* ── Preferences bar ────────────────────────────────────────────────────── */
-#prefs { padding:6px 12px 0; display:flex; flex-direction:column; gap:4px; }
-#country-row { border-top:1px solid var(--border); padding-top:5px; margin-top:2px; }
+#prefs { padding:0 14px 0; display:flex; flex-direction:column; gap:4px; background:var(--surface); }
+.prefs-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 0 4px; border-bottom:1px solid var(--border); margin-bottom:4px;
+}
+.prefs-title { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:var(--muted); }
+.prefs-clear-btn {
+  background:none; border:1px solid var(--border); color:var(--muted);
+  font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px;
+  cursor:pointer; letter-spacing:0.2px; transition:all 0.15s;
+}
+.prefs-clear-btn:active { opacity:0.7; }
+#country-row { border-top:1px solid var(--border); padding-top:6px; margin-top:2px; }
 .pref-row { display:flex; align-items:center; gap:6px; overflow:hidden; }
 .pref-label { font-size:11px; font-weight:800; flex-shrink:0; width:16px; }
-.pref-label.like    { color:var(--low); }
-.pref-label.dislike { color:var(--high); }
+.pref-label.like { color:var(--low); }
 .pref-tags { display:flex; gap:4px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; }
 .pref-tags::-webkit-scrollbar { display:none; }
-.pref-tag { font-size:11px; padding:2px 7px; border-radius:10px; font-weight:600; flex-shrink:0; }
-.pref-tag.like    { background:rgba(22,163,74,0.12);  color:var(--low);  border:1px solid rgba(22,163,74,0.3); }
-.pref-tag.dislike { background:rgba(220,38,38,0.12); color:var(--high); border:1px solid rgba(220,38,38,0.3); }
-.tag-del {
-  background:none; border:none; cursor:pointer; font-size:13px; line-height:1;
-  padding:0 0 0 4px; opacity:0.5; color:inherit; vertical-align:middle;
-}
+.pref-tag { font-size:11px; padding:3px 8px; border-radius:8px; font-weight:600; flex-shrink:0; }
+.pref-tag.like { background:rgba(22,163,74,0.1); color:var(--low); border:1px solid rgba(22,163,74,0.25); }
+.tag-del { background:none; border:none; cursor:pointer; font-size:12px; line-height:1; padding:0 0 0 3px; opacity:0.4; color:inherit; vertical-align:middle; }
 .tag-del:hover { opacity:1; }
 .pref-empty { font-size:11px; color:var(--muted); font-style:italic; flex-shrink:0; }
-#prefs-divider { height:1px; background:var(--border); margin:6px 12px 0; }
+#prefs-divider { height:1px; background:var(--border); margin:6px 0 0; }
 
 /* ── Saved strip ─────────────────────────────────────────────────────────── */
 #saved-strip {
-  display:none; gap:6px; overflow-x:auto; padding:6px 10px 4px;
-  scrollbar-width:none; flex-shrink:0;
-  border-bottom:1px solid var(--border);
+  display:none; gap:8px; overflow-x:auto; padding:8px 14px;
+  scrollbar-width:none; flex-shrink:0; border-bottom:1px solid var(--border); background:var(--surface);
 }
 #saved-strip::-webkit-scrollbar { display:none; }
 #saved-strip.has-items { display:flex; }
 .saved-chip {
-  display:flex; align-items:center; gap:6px; flex-shrink:0;
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:10px; padding:4px 10px 4px 6px;
-  border-left:3px solid var(--border);
+  display:flex; align-items:center; flex-shrink:0;
+  background:var(--bg); border:1px solid var(--border);
+  border-radius:10px; padding:5px 10px; border-left:3px solid var(--border);
   cursor:pointer; max-width:160px; transition:opacity 0.15s;
 }
 .saved-chip:active { opacity:0.7; }
@@ -192,44 +210,19 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 /* ── Saved overlay ───────────────────────────────────────────────────────── */
 #saved-overlay {
   position:fixed; inset:0; z-index:100; display:none;
-  background:rgba(0,0,0,0.5); backdrop-filter:blur(4px);
+  background:rgba(0,0,0,0.45); backdrop-filter:blur(8px);
   align-items:flex-end; justify-content:center;
 }
 #saved-overlay.open { display:flex; }
 #saved-overlay-card {
   width:100%; max-height:90dvh; overflow-y:auto;
-  background:var(--bg); border-radius:20px 20px 0 0;
-  padding:8px 0 calc(var(--safe-bot) + 8px);
-  position:relative;
+  background:var(--bg); border-radius:22px 22px 0 0;
+  padding:8px 0 calc(var(--safe-bot)+8px);
 }
-#saved-overlay-card .card {
-  margin:0 10px 8px; border-radius:var(--radius);
-  box-shadow:0 2px 12px rgba(0,0,0,0.1);
-}
-#overlay-handle {
-  width:36px; height:4px; background:var(--border);
-  border-radius:2px; margin:0 auto 10px;
-}
-#overlay-hint {
-  text-align:center; font-size:11px; color:var(--muted);
-  padding:0 0 8px; letter-spacing:0.3px;
-}
+#saved-overlay-card .card { margin:0 12px 10px; }
+#overlay-handle { width:36px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 10px; }
+#overlay-hint { text-align:center; font-size:11px; color:var(--muted); padding:0 0 8px; letter-spacing:0.3px; }
 
-/* ── Swipe gesture ──────────────────────────────────────────────────────── */
-.card { position:relative; cursor:pointer; user-select:none; touch-action:none; }
-.card.swiping { transition:none !important; }
-.swipe-overlay { display:none; }
-
-.card-hint {
-  padding:6px 14px 8px; font-size:11px; color:var(--muted);
-  text-align:right; font-weight:600;
-}
-.articles-header {
-  display:flex; justify-content:space-between; align-items:center;
-  padding:10px 14px 4px; font-size:12px; font-weight:700;
-  color:var(--muted); border-top:1px solid var(--border); text-transform:uppercase;
-  letter-spacing:0.5px;
-}
 
 /* ── Empty / Loading ─────────────────────────────────────────────────────── */
 #empty  { text-align:center; padding:60px 20px; color:var(--muted); font-size:15px; }
@@ -238,18 +231,15 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 /* ── Bottom nav ─────────────────────────────────────────────────────────── */
 #bottom-nav {
   display:flex; border-top:1px solid var(--border);
-  padding-bottom:var(--safe-bot);
-  background:var(--surface); flex-shrink:0;
-  box-shadow: 0 -1px 0 var(--border);
+  padding-bottom:var(--safe-bot); background:var(--surface); flex-shrink:0;
 }
 .nav-item {
   flex:1; display:flex; flex-direction:column; align-items:center;
   padding:10px 0; gap:3px; text-decoration:none;
   color:var(--muted); font-size:10px; font-weight:600;
-  letter-spacing:0.3px; text-transform:uppercase;
-  transition:color 0.15s;
+  letter-spacing:0.3px; text-transform:uppercase; transition:color 0.15s;
 }
-.nav-item.active, .nav-item:active { color:var(--accent); }
+.nav-item.active, .nav-item:active { color:var(--text); }
 .nav-icon { font-size:20px; line-height:1; }
 </style>
 </head>
@@ -258,37 +248,52 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 
   <!-- Header -->
   <div id="header">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <h1 style="margin:0">Mood<span>wire</span></h1>
-      <div style="display:flex;align-items:center;gap:8px">
-        <div id="anxiety-meter" style="display:none;align-items:center;gap:5px">
-          <div id="anxiety-bar-wrap" style="width:60px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
-            <div id="anxiety-bar" style="height:100%;border-radius:3px;transition:width 0.4s,background 0.4s"></div>
-          </div>
-          <span id="anxiety-val" style="font-size:11px;font-weight:700;min-width:24px"></span>
+    <div id="header-title-row">
+      <div>
+        <h1>Moodwire<span>.</span></h1>
+        <div id="last-updated" style="font-size:10px;color:var(--muted);font-weight:500;margin-top:2px"></div>
+      </div>
+      <button id="toggle-prefs-btn" onclick="togglePrefs()" style="display:none">Preferences</button>
+    </div>
+
+    <!-- Anxiety widget -->
+    <div id="anxiety-widget">
+      <div id="anxiety-widget-header">
+        <span id="anxiety-widget-title">Anxiety Index</span>
+        <div id="anxiety-chips">
+          <button class="anx-chip active" data-filter="">All</button>
+          <button class="anx-chip low"    data-filter="low">Low</button>
+          <button class="anx-chip mid"    data-filter="medium">Mid</button>
+          <button class="anx-chip high"   data-filter="high">High</button>
         </div>
-        <button id="clear-btn" onclick="clearPreferences()" style="display:none;background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:600;padding:4px 12px;border-radius:10px;cursor:pointer">Clear</button>
+      </div>
+      <div class="anx-row">
+        <span class="anx-row-label">Global</span>
+        <div class="anx-track"><div id="global-bar" class="anx-fill"></div></div>
+        <span id="global-val" class="anx-num" style="color:var(--muted)">—</span>
+      </div>
+      <div class="anx-row" id="yours-row" style="display:none">
+        <span class="anx-row-label">Yours</span>
+        <div class="anx-track"><div id="yours-bar" class="anx-fill"></div></div>
+        <span id="yours-val" class="anx-num"></span>
       </div>
     </div>
+
+    <!-- Category chips -->
     <div id="filters">
-      <button class="chip active" data-filter="" data-group="anxiety">All</button>
-      <button class="chip low"  data-filter="low"    data-group="anxiety">Low</button>
-      <button class="chip mid"  data-filter="medium" data-group="anxiety">Medium</button>
-      <button class="chip high" data-filter="high"   data-group="anxiety">High</button>
-      <div class="chip-sep"></div>
       <div id="cat-chips"></div>
     </div>
   </div>
 
   <!-- Preferences -->
   <div id="prefs" style="display:none">
+    <div class="prefs-header">
+      <span class="prefs-title">Preferences</span>
+      <button class="prefs-clear-btn" onclick="clearPreferences()">Clear</button>
+    </div>
     <div class="pref-row">
       <span class="pref-label like">✓</span>
       <div class="pref-tags" id="liked-tags"></div>
-    </div>
-    <div class="pref-row">
-      <span class="pref-label dislike">✗</span>
-      <div class="pref-tags" id="disliked-tags"></div>
     </div>
     <div class="pref-row" id="country-row" style="display:none">
       <span class="pref-label" style="color:#6b7280">🌍</span>
@@ -304,7 +309,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
   <div id="saved-overlay" onclick="if(event.target===this)closeSavedOverlay()">
     <div id="saved-overlay-card">
       <div id="overlay-handle"></div>
-      <div id="overlay-hint">↙ dislike &nbsp;·&nbsp; ↘ like &nbsp;·&nbsp; ↓ close</div>
+      <div id="overlay-hint">↙ remove &nbsp;·&nbsp; ↘ like &nbsp;·&nbsp; ↓ close</div>
       <div id="overlay-content"></div>
     </div>
   </div>
@@ -328,8 +333,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 let activeAnxiety   = '';
 let activeCategory  = '';
 let isLoading       = false;
-let nextPersonalized = true; // alternates for replacements
-const STACK_SIZE    = 5;
+const STACK_SIZE    = 15;
 const shownIds      = new Set();
 
 // ── Fetch topics (initial stack or single replacement) ────────────────────
@@ -359,27 +363,45 @@ async function loadTopics() {
     document.getElementById('feed').innerHTML = '<div id="empty">No topics found.</div>';
     isLoading = false; return;
   }
-  document.getElementById('feed').innerHTML = topics.map(t => renderCard(t)).join('');
-  document.querySelectorAll('.card').forEach(c => attachSwipe(c));
+  document.getElementById('feed').innerHTML = topics.map((t, i) => renderCard(t, i)).join('');
+  attachSentinel();
   isLoading = false;
 }
 
-// ── Load one replacement card ─────────────────────────────────────────────
-async function loadReplacement() {
-  const mode = nextPersonalized ? 'personalized' : 'random';
-  nextPersonalized = !nextPersonalized;
+// ── Infinite scroll: append more cards ───────────────────────────────────
+let isFetching = false;
 
-  const topics = await fetchTopics(1, mode);
-  if (!topics.length) return;
-
-  const html = renderCard(topics[0]);
-  const tmp  = document.createElement('div');
-  tmp.innerHTML = html;
-  const card = tmp.firstElementChild;
-  card.classList.add('slide-in');
-  document.getElementById('feed').appendChild(card);
-  attachSwipe(card);
+async function loadMore() {
+  if (isFetching) return;
+  isFetching = true;
+  const topics = await fetchTopics(10, 'mixed');
+  if (topics.length) {
+    const feed = document.getElementById('feed');
+    // Re-attach sentinel after new cards
+    const sentinel = document.getElementById('feed-sentinel');
+    if (sentinel) sentinel.remove();
+    topics.forEach((t, i) => {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = renderCard(t, i);
+      feed.appendChild(tmp.firstElementChild);
+    });
+    attachSentinel();
+  }
+  isFetching = false;
 }
+
+function attachSentinel() {
+  const feed = document.getElementById('feed');
+  const sentinel = document.createElement('div');
+  sentinel.id = 'feed-sentinel';
+  sentinel.style.height = '1px';
+  feed.appendChild(sentinel);
+  observer.observe(sentinel);
+}
+
+const observer = new IntersectionObserver(entries => {
+  if (entries[0].isIntersecting) loadMore();
+}, { rootMargin: '200px' });
 
 
 function anxColor(a) {
@@ -388,112 +410,112 @@ function anxColor(a) {
 }
 
 function renderCard(t, i) {
+  const expand = !!t.personalized;
   const delay = Math.min(i * 40, 400);
   const bullets = t.bullets.map(b => `<li>${esc(b)}</li>`).join('');
+
+  const heroArticle = t.articles.find(a => a.image_path);
+  const hero = heroArticle
+    ? `<div class="card-hero">
+        <img src="${esc(heroArticle.image_path)}" alt="" loading="lazy"
+             onerror="this.closest('.card-hero').remove()">
+        <div class="card-hero-badge" style="background:${t.anxiety_color}">anxiety ${t.anxiety_avg.toFixed(1)}</div>
+       </div>`
+    : '';
+
   const articles = t.articles.map(a => {
     const anx   = parseFloat(a.anxiety ?? 5);
     const thumb = a.image_path
       ? `<img src="${esc(a.image_path)}" class="article-thumb" alt="">`
-      : `<div class="article-thumb-placeholder"></div>`;
-    // Store article tags as data attribute (exclude country tags)
-    const artTags = (a.tags ?? '').split(',').map(s=>s.trim()).filter(s=>s && !s.startsWith('country:'));
-    const tagsAttr = esc(JSON.stringify(artTags));
-    return `<a href="${esc(a.url)}" target="_blank" class="article-row" data-tags="${tagsAttr}" data-anxiety="${anx.toFixed(1)}" onclick="articleClick(event, this)">
+      : '';
+    return `<a href="${esc(a.url)}" target="_blank" class="article-row">
       ${thumb}
       <div class="article-info">
         <div class="article-title">${esc(a.title)}</div>
-        <div class="article-src">${esc(a.feed_name)}</div>
+        <div class="article-src">${esc(a.feed_name)}${a.time_ago ? ' · ' + esc(a.time_ago) : ''}</div>
       </div>
       <div class="article-anx" style="background:${anxColor(anx)}"></div>
     </a>`;
   }).join('');
 
+  const anxPip = heroArticle ? '' :
+    `<span class="anxiety-pip" style="background:${t.anxiety_color}">anxiety ${t.anxiety_avg.toFixed(1)}</span>`;
+
   return `
   <div class="card" data-id="${t.id}" data-state="0" data-anxiety="${t.anxiety_avg}"
-       style="border-left-color:${t.anxiety_color};animation-delay:${delay}ms"
-       onclick="tapCard(${t.id}, this)">
-    <div class="card-header">
-      <div class="card-meta">
+       style="animation-delay:${delay}ms"
+       onclick="tapCard(${t.id}, this)" data-state="${expand ? 1 : 0}">
+    <div class="card-accent" style="background:${t.anxiety_color}"></div>
+    ${hero}
+    <div class="card-body">
+      <div class="card-eyebrow">
+        ${t.is_new   ? `<span class="badge badge-new">NEW</span>` : ''}
         ${t.category ? `<span class="badge badge-cat">${esc(t.category)}</span>` : ''}
         ${t.geo      ? `<span class="badge badge-geo">${esc(t.geo)}</span>` : ''}
         <span class="card-time">${esc(t.time_ago ?? '')}</span>
       </div>
-      <span class="anxiety-pip" style="background:${t.anxiety_color}">${t.anxiety_label} ${t.anxiety_avg.toFixed(1)}</span>
+      <div class="card-title">${esc(t.title)}</div>
+      <div class="card-foot">
+        <span class="card-article-count">${t.articles.length} article${t.articles.length !== 1 ? 's' : ''}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${anxPip}
+          <button class="card-save-btn" onclick="keepCard(${t.id},this,event)" title="Keep">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          </button>
+        </div>
+      </div>
     </div>
 
-    <div class="card-title">${esc(t.title)}</div>
+    <ul class="card-bullets card-section" style="display:${expand ? '' : 'none'}">${bullets}</ul>
 
-    <ul class="card-bullets card-section" style="display:none">${bullets}</ul>
+    <div class="card-tap-hint" style="display:${expand ? '' : 'none'}">Tap for sources</div>
 
     <div class="articles-section card-section" style="display:none">
       <div class="articles-header">
-        <span>Articles</span>
-        <span class="count-badge">${t.articles.length}</span>
+        <span>Sources</span>
+        <span>${t.articles.length}</span>
       </div>
       ${articles}
     </div>
-
-    <div class="card-hint">${t.articles.length} article${t.articles.length !== 1 ? 's' : ''}</div>
   </div>`;
 }
 
-// Signal interest — accepts tags array or topic_id, optional source and anxiety
-async function signal(tagsOrId, direction = 'right', source = 'swipe', anxiety = null) {
-  const body = typeof tagsOrId === 'number'
-    ? { topic_id: tagsOrId, direction, source, anxiety }
-    : { tags: tagsOrId, direction, source, anxiety };
-  // Skip only if tags empty AND no anxiety to track
-  if (Array.isArray(tagsOrId) && !tagsOrId.length && anxiety === null) return;
-  const res  = await fetch('api.php?action=swipe', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  const data = await res.json();
-  if (data.liked !== undefined) renderPreferences(data.liked, data.disliked, data.countries);
-  if (data.anxiety_avg !== undefined) renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
-}
-
-// Article click — signal article tags once, then navigate
-async function articleClick(e, el) {
-  e.preventDefault();
-  const win = window.open('', '_blank'); // open now (in user gesture, no popup block)
-  if (!el.dataset.signaled) {
-    el.dataset.signaled = '1';
-    const tags    = JSON.parse(el.dataset.tags ?? '[]');
-    const anxiety = parseFloat(el.dataset.anxiety ?? 5);
-    await signal(tags, 'right', 'click', anxiety); // update meter first
-  }
-  win.location.href = el.href; // then navigate the tab
+function keepCard(id, btn, event) {
+  event.stopPropagation();
+  const card = btn.closest('.card');
+  if (btn.classList.contains('saved')) return;
+  addToSaved(id, card, card.outerHTML);
+  btn.classList.add('saved');
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
 }
 
 // 3-state tap: 0=title only → 1=+bullets → 2=+articles → 0
 function tapCard(id, card) {
-  // Don't collapse if user tapped a link
   if (event.target.closest('a')) return;
-  const state    = parseInt(card.dataset.state);
-  const next     = (state + 1) % 3;
-
-  // First tap = interest signal for the topic (once only)
-  if (state === 0 && !card.dataset.signaled) {
-    card.dataset.signaled = '1';
-    signal(id, 'right', 'tap', parseFloat(card.dataset.anxiety ?? 5));
-  }
-  const bullets  = card.querySelector('.card-bullets');
-  const articles = card.querySelector('.articles-section');
-  const hint     = card.querySelector('.card-hint');
+  const state = parseInt(card.dataset.state);
+  const next  = (state + 1) % 3;
 
   card.dataset.state = next;
-  bullets.style.display  = next >= 1 ? '' : 'none';
-  articles.style.display = next >= 2 ? '' : 'none';
-  // hint is article count — no change needed
+  card.querySelector('.card-bullets').style.display        = next >= 1 ? '' : 'none';
+  card.querySelector('.card-tap-hint').style.display       = next === 1 ? '' : 'none';
+  card.querySelector('.articles-section').style.display    = next >= 2 ? '' : 'none';
+}
+
+function timeAgo(dateStr) {
+  const sec = Math.floor((Date.now() - new Date(dateStr)) / 1000);
+  if (sec < 60)   return 'just now';
+  if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+  if (sec < 86400)return Math.floor(sec / 3600) + 'h ago';
+  return Math.floor(sec / 86400) + 'd ago';
 }
 
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Load category chips ───────────────────────────────────────────────────
+let globalAnxietyAvg = null;
+
+// ── Load category chips + global anxiety ─────────────────────────────────
 async function loadStats() {
   const res  = await fetch('api.php?action=stats');
   const data = await res.json();
@@ -502,13 +524,18 @@ async function loadStats() {
     `<button class="chip" data-filter="${esc(c.category)}" data-group="category"
       onclick="setCategory(this)">${esc(c.category)} <span style="opacity:.5;font-size:10px">${c.c}</span></button>`
   ).join('');
+  globalAnxietyAvg = parseFloat(data.global_anxiety_avg) || null;
+  renderAnxietyBars(null, null);
+  if (data.last_updated) {
+    document.getElementById('last-updated').textContent = 'Updated ' + timeAgo(data.last_updated);
+  }
 }
 
-// ── Filters ───────────────────────────────────────────────────────────────
-document.getElementById('filters').addEventListener('click', e => {
-  const chip = e.target.closest('.chip[data-group="anxiety"]');
+// ── Anxiety filter chips ──────────────────────────────────────────────────
+document.getElementById('anxiety-chips').addEventListener('click', e => {
+  const chip = e.target.closest('.anx-chip');
   if (!chip) return;
-  document.querySelectorAll('.chip[data-group="anxiety"]').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.anx-chip').forEach(c => c.classList.remove('active'));
   chip.classList.add('active');
   activeAnxiety = chip.dataset.filter;
   loadTopics();
@@ -535,7 +562,7 @@ let overlayActiveId = null;
 function addToSaved(id, card, html) {
   if (savedCards.has(id)) return;
   const title = card.querySelector('.card-title')?.textContent?.trim() ?? '';
-  const color = card.style.borderLeftColor || '#e4e4e7';
+  const color = card.querySelector('.card-accent')?.style.background || '#e8e8e8';
   savedCards.set(id, { title, color, html: html ?? card.outerHTML, id });
   renderSavedStrip();
 }
@@ -564,7 +591,6 @@ function openSaved(id) {
     card.dataset.state='2';
     const bullets=card.querySelector('.card-bullets');
     const articles=card.querySelector('.articles-section');
-    const hint=card.querySelector('.card-hint');
     if(bullets)bullets.style.display='';
     if(articles)articles.style.display='';
     
@@ -588,7 +614,7 @@ function removeSaved(id) {
 async function handleSwipeAction(card, dir, onComplete) {
   const id = parseInt(card.dataset.id);
   if (dir === 'up') {
-    const savedHtml = card.outerHTML; // capture BEFORE animation
+    const savedHtml = card.outerHTML;
     card.style.transition = 'transform 0.28s ease, opacity 0.28s ease';
     card.style.transform = 'translateY(-110%) scale(0.85)';
     card.style.opacity = '0';
@@ -599,37 +625,52 @@ async function handleSwipeAction(card, dir, onComplete) {
   card.style.transform = `translateX(${dir==='right'?'120vw':'-120vw'}) rotate(${dir==='right'?20:-20}deg)`;
   card.style.opacity = '0';
   setTimeout(() => { card.remove(); if (onComplete) onComplete(); }, 300);
-  const wasUntouched = parseInt(card.dataset.state) === 0;
-  if (dir === 'left' || wasUntouched) {
-    const res  = await fetch('api.php?action=swipe', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic_id:id,direction:dir})});
+  if (dir === 'right' || dir === 'left') {
+    const res  = await fetch('api.php?action=swipe', {method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({topic_id:id, direction:dir, anxiety: parseFloat(card.dataset.anxiety ?? 5)})});
     const data = await res.json();
-    renderPreferences(data.liked, data.disliked, data.countries);
+    renderPreferences(data.liked, data.countries);
     if (data.anxiety_avg !== undefined) renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
   }
 }
 
 // ── Swipe via event delegation (works for all cards, dynamic or not) ─────
-let _swipeCard=null, _swipeOnSwipe=null, _sx=0, _sy=0, _dx=0, _dy=0;
+let _swipeCard=null, _swipeOnSwipe=null, _sx=0, _sy=0, _dx=0, _dy=0, _swipeLocked=null;
 
-function setupDelegatedSwipe(container, cardSelector, getHandler) {
-  container.style.touchAction = 'none';
+function setupDelegatedSwipe(container, cardSelector, getHandler, verticalSwipe=false) {
+  if (!verticalSwipe) container.style.touchAction = 'pan-y';
+  else container.style.touchAction = 'none';
+
   container.addEventListener('touchstart', e => {
     const card = e.target.closest(cardSelector);
     if (!card) return;
     _swipeCard = card;
     _swipeOnSwipe = getHandler(card);
     _sx=e.touches[0].clientX; _sy=e.touches[0].clientY;
-    _dx=_dy=0;
+    _dx=_dy=0; _swipeLocked=null;
     card.classList.add('swiping');
-  }, {passive:false});
+  }, {passive:true});
 
   container.addEventListener('touchmove', e => {
     if (!_swipeCard) return;
-    e.preventDefault();
     _dx=e.touches[0].clientX-_sx; _dy=e.touches[0].clientY-_sy;
-    // Apply visual movement
+
+    // Lock direction on first significant movement
+    if (!_swipeLocked && (Math.abs(_dx) > 4 || Math.abs(_dy) > 4)) {
+      _swipeLocked = Math.abs(_dx) >= Math.abs(_dy) ? 'h' : 'v';
+    }
+
+    if (_swipeLocked === 'v' && !verticalSwipe) {
+      // Abort swipe, let browser scroll
+      _swipeCard.style.transform = '';
+      _swipeCard.classList.remove('swiping');
+      _swipeCard = null; _swipeOnSwipe = null; _swipeLocked = null;
+      return;
+    }
+
+    e.preventDefault();
     _swipeCard.style.transition = 'none';
-    if (Math.abs(_dy) > Math.abs(_dx)) {
+    if (_swipeLocked === 'v') {
       _swipeCard.style.transform = `translateY(${_dy}px)`;
     } else {
       _swipeCard.style.transform = `translateX(${_dx}px) rotate(${_dx*0.03}deg)`;
@@ -644,19 +685,18 @@ function setupDelegatedSwipe(container, cardSelector, getHandler) {
     const isUp   = _dy < -SWIPE_THRESHOLD && Math.abs(_dy)>Math.abs(_dx);
     const isDown = _dy >  SWIPE_THRESHOLD && Math.abs(_dy)>Math.abs(_dx);
     const isHoriz= Math.abs(_dx)>=SWIPE_THRESHOLD && Math.abs(_dx)>=Math.abs(_dy);
-    if (isUp)        onSwipe('up');
-    else if (isDown) onSwipe('down');
+    if (isUp)         onSwipe('up');
+    else if (isDown)  onSwipe('down');
     else if (isHoriz) onSwipe(_dx>0?'right':'left');
     else { card.style.transform=''; }
-    _swipeCard=null; _swipeOnSwipe=null;
+    _swipeCard=null; _swipeOnSwipe=null; _swipeLocked=null;
   }, {passive:true});
 }
 
-// Feed delegation
+// Feed swipe delegation — preference tracking only, no batch loading
 setupDelegatedSwipe(document.getElementById('feed'), '.card', card => dir => {
   if (dir==='down') return;
-  handleSwipeAction(card, dir, () => loadReplacement());
-  if (dir!=='up') loadReplacement();
+  handleSwipeAction(card, dir);
 });
 
 // Overlay delegation
@@ -666,7 +706,7 @@ setupDelegatedSwipe(document.getElementById('overlay-content'), '.card', card =>
   if (dir==='up')   { closeSavedOverlay(); return; }
   handleSwipeAction(card, dir, () => removeSaved(savedId));
   setTimeout(() => removeSaved(savedId), 320);
-});
+}, true);
 
 function attachSwipe(card) {} // no-op — delegation handles all cards
 function attachSwipeOverlay(card, savedId) {} // no-op — delegation handles overlay
@@ -676,26 +716,38 @@ function flag(cc) {
   return cc.toUpperCase().split('').map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('');
 }
 
-function renderPreferences(liked, disliked, countries) {
-  const hasPrefs = Object.keys(liked ?? {}).length || Object.keys(disliked ?? {}).length || Object.keys(countries ?? {}).length;
-  document.getElementById('prefs').style.display         = hasPrefs ? '' : 'none';
-  document.getElementById('prefs-divider').style.display = hasPrefs ? '' : 'none';
-  document.getElementById('clear-btn').style.display     = hasPrefs ? '' : 'none';
+let prefsOpen = false;
 
-  const likedEntries    = Object.entries(liked    ?? {}).sort((a,b) => b[1]-a[1]).slice(0,15);
-  const dislikedEntries = Object.entries(disliked ?? {}).sort((a,b) => b[1]-a[1]).slice(0,15);
+function togglePrefs() {
+  prefsOpen = !prefsOpen;
+  const btn = document.getElementById('toggle-prefs-btn');
+  document.getElementById('prefs').style.display         = prefsOpen ? '' : 'none';
+  document.getElementById('prefs-divider').style.display = prefsOpen ? '' : 'none';
+  btn.textContent = prefsOpen ? 'Hide' : 'Preferences';
+  btn.classList.toggle('open', prefsOpen);
+}
+
+function renderPreferences(liked, countries) {
+  const likedEntries   = Object.entries(liked ?? {}).sort((a,b) => b[1]-a[1]).slice(0,15);
+  const countryEntries = Object.entries(countries ?? {}).filter(([,c]) => c > 0).sort((a,b) => b[1]-a[1]).slice(0,15);
+  const hasPrefs = likedEntries.length > 0 || countryEntries.length > 0;
+  document.getElementById('toggle-prefs-btn').style.display = hasPrefs ? '' : 'none';
+  if (!hasPrefs) {
+    prefsOpen = false;
+    document.getElementById('prefs').style.display         = 'none';
+    document.getElementById('prefs-divider').style.display = 'none';
+    const btn = document.getElementById('toggle-prefs-btn');
+    btn.textContent = 'Preferences';
+    btn.classList.remove('open');
+  }
 
   document.getElementById('liked-tags').innerHTML =
-    likedEntries.length ? likedEntries.map(([t,c]) =>
-      `<span class="pref-tag like">${esc(t)}${c>1?` <b>${c}</b>`:''}<button class="tag-del" onclick="removeTag('${esc(t)}','liked')">×</button></span>`).join('')
+    likedEntries.length ? likedEntries.map(([t,c]) => {
+      const scoreStyle = c < 0 ? 'color:var(--high)' : '';
+      return `<span class="pref-tag like" style="${c < 0 ? 'opacity:0.7' : ''}">${esc(t)} <b style="${scoreStyle}">${c > 0 ? '+' : ''}${c}</b><button class="tag-del" onclick="removeTag('${esc(t)}','liked')">×</button></span>`;
+    }).join('')
     : '<span class="pref-empty">swipe right to add</span>';
 
-  document.getElementById('disliked-tags').innerHTML =
-    dislikedEntries.length ? dislikedEntries.map(([t,c]) =>
-      `<span class="pref-tag dislike">${esc(t)}${c>1?` <b>${c}</b>`:''}<button class="tag-del" onclick="removeTag('${esc(t)}','disliked')">×</button></span>`).join('')
-    : '<span class="pref-empty">swipe left to add</span>';
-
-  const countryEntries = Object.entries(countries ?? {}).sort((a,b) => b[1]-a[1]).slice(0,15);
   const countryRow = document.getElementById('country-row');
   countryRow.style.display = countryEntries.length ? '' : 'none';
   document.getElementById('country-tags').innerHTML =
@@ -704,16 +756,35 @@ function renderPreferences(liked, disliked, countries) {
     ).join('');
 }
 
+function anxLevelColor(score) {
+  return score >= 7 ? '#dc2626' : score >= 4 ? '#d97706' : '#16a34a';
+}
+
+function renderAnxietyBars(personalAvg, personalCount) {
+  // Global bar
+  if (globalAnxietyAvg !== null) {
+    const color = anxLevelColor(globalAnxietyAvg);
+    document.getElementById('global-bar').style.width      = (globalAnxietyAvg / 10 * 100) + '%';
+    document.getElementById('global-bar').style.background = color;
+    document.getElementById('global-val').style.color      = color;
+    document.getElementById('global-val').textContent      = globalAnxietyAvg.toFixed(1);
+  }
+
+  // Personal bar
+  const yoursRow = document.getElementById('yours-row');
+  if (!personalAvg || personalCount === 0) { yoursRow.style.display = 'none'; return; }
+  yoursRow.style.display = 'flex';
+
+  const color = anxLevelColor(personalAvg);
+  document.getElementById('yours-bar').style.width      = (personalAvg / 10 * 100) + '%';
+  document.getElementById('yours-bar').style.background = color;
+  document.getElementById('yours-val').style.color      = color;
+  document.getElementById('yours-val').textContent      = personalAvg.toFixed(1);
+
+}
+
 function renderAnxietyMeter(avg, count) {
-  const meter = document.getElementById('anxiety-meter');
-  if (avg === null || count === 0) { meter.style.display = 'none'; return; }
-  meter.style.display = 'flex';
-  const pct   = (avg / 10) * 100;
-  const color = avg >= 7 ? '#dc2626' : avg >= 4 ? '#d97706' : '#16a34a';
-  document.getElementById('anxiety-bar').style.width      = pct + '%';
-  document.getElementById('anxiety-bar').style.background = color;
-  document.getElementById('anxiety-val').style.color      = color;
-  document.getElementById('anxiety-val').textContent      = avg.toFixed(1);
+  renderAnxietyBars(avg, count);
 }
 
 async function removeTag(tag, list) {
@@ -723,19 +794,20 @@ async function removeTag(tag, list) {
     body: JSON.stringify({ tag, list })
   });
   const data = await res.json();
-  renderPreferences(data.liked, data.disliked, data.countries);
+  renderPreferences(data.liked, data.countries);
   if (data.anxiety_avg !== undefined) renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
 }
 
 async function clearPreferences() {
   await fetch('api.php?action=clear_preferences', { method: 'POST' });
-  renderPreferences({}, {}, {});
+  prefsOpen = false;
+  renderPreferences({}, {});
 }
 
 async function loadPreferences() {
   const res  = await fetch('api.php?action=preferences');
   const data = await res.json();
-  renderPreferences(data.liked, data.disliked, data.countries);
+  renderPreferences(data.liked, data.countries);
   renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
 }
 
