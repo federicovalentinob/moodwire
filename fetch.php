@@ -40,8 +40,12 @@ if ($deleted > 0) {
     log_action('fetch', 'success', "Purged {$deleted} articles from expired/orphan topics");
     $purged_topics = purge_empty_topics();
     if ($purged_topics > 0) log_action('fetch', 'success', "Removed {$purged_topics} empty topics");
-    regenerate_stale_bullets();
 }
+
+// Clean any thumbnail files no longer referenced by an article
+// (catches TRUNCATE wipes, failed inserts, schema-bypass deletes, etc.)
+$orphan_thumbs = purge_orphan_thumbs();
+if ($orphan_thumbs > 0) log_action('fetch', 'success', "Removed {$orphan_thumbs} orphan thumbnail files");
 
 $feeds   = get_feeds(active_only: true);
 $total   = 0;

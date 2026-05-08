@@ -236,6 +236,27 @@ function download_thumbnail(string $image_url): ?string {
     return 'thumbs/' . $filename;
 }
 
+// Delete thumbnail files in thumbs/ that are no longer referenced by any article.
+// Returns number of files removed.
+function purge_orphan_thumbs(): int {
+    $dir = __DIR__ . '/thumbs';
+    if (!is_dir($dir)) return 0;
+    $referenced = db()->query("SELECT image_path FROM articles WHERE image_path IS NOT NULL")
+                      ->fetchAll(PDO::FETCH_COLUMN);
+    $keep = [];
+    foreach ($referenced as $p) {
+        $keep[basename($p)] = true;
+    }
+    $removed = 0;
+    foreach (scandir($dir) as $f) {
+        if ($f === '.' || $f === '..') continue;
+        if (!isset($keep[$f])) {
+            if (@unlink($dir . '/' . $f)) $removed++;
+        }
+    }
+    return $removed;
+}
+
 function save_article(int $feed_id, array $article): bool {
     try {
         // Skip if same title already exists in DB
@@ -454,72 +475,6 @@ function save_topic(string $title, array $bullets, float $anxiety_avg, array $ar
 }
 
 // ─── Display helpers ─────────────────────────────────────────────────────────
-
-function regenerate_stale_bullets(): void {
-    require_once __DIR__ . '/config.php';
-
-    $system = 'You are a JSON API. Output only a raw valid JSON array. No markdown, no citations, no extra text.';
-
-    // Find topics whose bullet count exceeds their current article count
-    $topics = db()->query('
-        SELECT t.id, t.title,
-               COUNT(ato.article_id) as article_count,
-               (SELECT COUNT(*) FROM topic_bullets WHERE topic_id = t.id) as bullet_count
-        FROM topics t
-        LEFT JOIN article_topics ato ON ato.topic_id = t.id
-        GROUP BY t.id
-        HAVING bullet_count = 0 OR bullet_count > article_count
-    ')->fetchAll();
-
-    $stale = [];
-    foreach ($topics as $topic) {
-        if ((int)$topic['article_count'] === 0) continue;
-        $art_titles = db()->query(
-            "SELECT a.title FROM articles a
-             JOIN article_topics ato ON ato.article_id = a.id
-             WHERE ato.topic_id = {$topic['id']}"
-        )->fetchAll(PDO::FETCH_COLUMN);
-        $stale[] = [
-            'id'          => $topic['id'],
-            'title'       => $topic['title'],
-            'art_titles'  => $art_titles,
-            'max_b'       => min(5, max(2, (int)$topic['article_count'])),
-        ];
-    }
-
-    if (empty($stale)) return;
-
-    // Build one batch prompt for all stale topics
-    $topics_str = '';
-    foreach ($stale as $i => $t) {
-        $art_list    = implode("\n", array_map(fn($a) => "- {$a}", $t['art_titles']));
-        $topics_str .= "TOPIC_ID:{$i} \"{$t['title']}\" ({$t['max_b']} bullets)\n{$art_list}\n\n";
-    }
-
-    $batch_prompt = get_prompt('bullets_batch');
-    $batch_prompt = str_replace('{{topics}}', $topics_str, $batch_prompt);
-    $raw          = call_perplexity($batch_prompt, $system);
-    $batch_result = json_decode(extract_json($raw), true);
-
-    $bullets_by_idx = [];
-    if (is_array($batch_result)) {
-        foreach ($batch_result as $r) {
-            if (isset($r['id'], $r['bullets'])) $bullets_by_idx[(int)$r['id']] = $r['bullets'];
-        }
-    }
-
-    foreach ($stale as $i => $t) {
-        $bullets = $bullets_by_idx[$i] ?? [];
-        if (empty($bullets)) continue;
-        $bullets = array_map(fn($b) => trim($b), array_slice(dedupe_bullets($bullets), 0, $t['max_b']));
-
-        db()->prepare('DELETE FROM topic_bullets WHERE topic_id = ?')->execute([$t['id']]);
-        $st = db()->prepare('INSERT INTO topic_bullets (topic_id, bullet, display_order) VALUES (?, ?, ?)');
-        foreach ($bullets as $j => $b) $st->execute([$t['id'], $b, $j]);
-
-        log_action('fetch', 'success', "Regenerated bullets for topic [{$t['id']}] {$t['title']}");
-    }
-}
 
 function compute_topic_geo(int $topic_id): ?string {
     static $regions = [

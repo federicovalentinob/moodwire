@@ -19,31 +19,35 @@ if (!$total_unassigned) {
 db()->exec('UPDATE topics SET is_new = 0');
 
 // ── Tag normalization — collapse synonyms into one canonical form ─────────────
-const TAG_ALIASES = [
-    'elections'               => 'election',
-    'artificial intelligence' => 'ai',
-    'artificial-intelligence' => 'ai',
-    'tech'                    => 'technology',
-    'covid-19'                => 'covid',
-    'coronavirus'             => 'covid',
-    'cryptocurrency'          => 'crypto',
-    'soccer'                  => 'football',
-    'us'                      => 'usa',
-    'united states'           => 'usa',
-    'donald trump'            => 'trump',
-];
-
-function normalize_tag(string $tag): string {
-    return TAG_ALIASES[$tag] ?? $tag;
+if (!defined('TAG_ALIASES')) {
+    define('TAG_ALIASES', [
+        'elections'               => 'election',
+        'artificial intelligence' => 'ai',
+        'artificial-intelligence' => 'ai',
+        'tech'                    => 'technology',
+        'covid-19'                => 'covid',
+        'coronavirus'             => 'covid',
+        'cryptocurrency'          => 'crypto',
+        'soccer'                  => 'football',
+        'us'                      => 'usa',
+        'united states'           => 'usa',
+        'donald trump'            => 'trump',
+    ]);
 }
 
-// All raw tags that map to the same canonical (for use in SQL IN clauses)
-function tag_variants(string $canonical): array {
-    $variants = [$canonical];
-    foreach (TAG_ALIASES as $alias => $norm) {
-        if ($norm === $canonical) $variants[] = $alias;
+if (!function_exists('normalize_tag')) {
+    function normalize_tag(string $tag): string {
+        return TAG_ALIASES[$tag] ?? $tag;
     }
-    return array_unique($variants);
+
+    // All raw tags that map to the same canonical (for use in SQL IN clauses)
+    function tag_variants(string $canonical): array {
+        $variants = [$canonical];
+        foreach (TAG_ALIASES as $alias => $norm) {
+            if ($norm === $canonical) $variants[] = $alias;
+        }
+        return array_unique($variants);
+    }
 }
 
 cli_log("{$total_unassigned} unassigned articles. Grouping by top tags...\n");
@@ -73,6 +77,7 @@ $tag_groups = array_slice(
 );
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+if (!function_exists('build_article_lines')) {
 function build_article_lines(array $articles): string {
     return implode("\n\n", array_map(function($a) {
         $excerpt = trim(preg_replace('/\s+/', ' ', strip_tags($a['raw_content'] ?? '')));
@@ -156,14 +161,16 @@ function get_subtags(string $tag1, array $exclude_ids = []): array {
     );
 }
 
+} // end if(!function_exists('build_article_lines'))
+
 // ── Cluster + bullets for one batch ──────────────────────────────────────────
 $cluster_prompt_tpl = get_prompt('cluster');
 $total_new = $total_existing = 0;
 
+if (!function_exists('save_clusters')) {
 function save_clusters(array $clusters, array $article_ids): array {
-    $new_topics_pending     = [];
-    $topics_needing_bullets = [];
-    $saved_new = $saved_existing = 0;
+    $new_topics_pending = [];
+    $saved_new = 0;
 
     // Words that indicate a truncated title if they appear at the end
     static $trailing = ['for','of','the','a','an','in','on','at','to','with','from',
@@ -171,26 +178,23 @@ function save_clusters(array $clusters, array $article_ids): array {
                         'as','into','through','during','including','until','against',
                         'between','without','within','along','following','across','amid'];
 
+    // Topics are immutable: every cluster becomes a new topic. Any topic_id from the AI is ignored.
     foreach ($clusters as $cluster) {
         $title        = trim($cluster['title'] ?? '');
-        $topic_id     = isset($cluster['topic_id']) && $cluster['topic_id'] ? (int)$cluster['topic_id'] : null;
         $cluster_ids  = $cluster['ids']      ?? [];
         $content_type = $cluster['type']     ?? 'informative';
         $category     = $cluster['category'] ?? null;
 
-        // Skip missing or truncated titles (for new topics — existing ones identified by topic_id)
-        if (!$topic_id) {
-            if (empty($title)) { continue; }
-            $last_word = strtolower(preg_replace('/[^a-z]/i', '', substr(strrchr(' '.$title, ' '), 1)));
-            if (in_array($last_word, $trailing)) {
-                cli_log("      ✕ Skipped truncated title: \"{$title}\"");
-                continue;
-            }
+        if (empty($title)) { continue; }
+        $last_word = strtolower(preg_replace('/[^a-z]/i', '', substr(strrchr(' '.$title, ' '), 1)));
+        if (in_array($last_word, $trailing)) {
+            cli_log("      ✕ Skipped truncated title: \"{$title}\"");
+            continue;
         }
 
         if (empty($cluster_ids)) continue;
         $valid_ids = array_values(array_filter($cluster_ids, fn($id) => in_array((int)$id, $article_ids)));
-        if (count($valid_ids) < 2) {
+        if (count($valid_ids) < 3) {
             if (!empty($valid_ids)) cli_log("      ✕ Dropped [{$title}] — only " . count($valid_ids) . " article(s)");
             continue;
         }
@@ -200,35 +204,18 @@ function save_clusters(array $clusters, array $article_ids): array {
             "SELECT COALESCE(AVG(score), 5) FROM article_indexes WHERE index_name='anxiety' AND article_id IN ({$ids_str})"
         )->fetchColumn();
 
-        if ($topic_id) {
-            $chk = db()->prepare('SELECT COUNT(*) FROM topics WHERE id = ?');
-            $chk->execute([$topic_id]);
-            if (!$chk->fetchColumn()) $topic_id = null;
-        }
-
-        if ($topic_id) {
-            $st = db()->prepare('INSERT IGNORE INTO article_topics (article_id, topic_id) VALUES (?, ?)');
-            foreach ($valid_ids as $aid) $st->execute([$aid, $topic_id]);
-            db()->prepare('UPDATE topics SET anxiety_avg = (SELECT AVG(ai.score) FROM article_indexes ai JOIN article_topics ato ON ato.article_id = ai.article_id WHERE ato.topic_id = ? AND ai.index_name = "anxiety") WHERE id = ?')
-               ->execute([$topic_id, $topic_id]);
-            update_topic_geo($topic_id);
-            $topics_needing_bullets[$topic_id] = $title;
-            $saved_existing++;
-            cli_log("      → [{$topic_id}] {$title}");
-        } else {
-            $art_titles = db()->query("SELECT title FROM articles WHERE id IN ({$ids_str})")->fetchAll(PDO::FETCH_COLUMN);
-            $new_topics_pending[] = [
-                'title'        => $title,
-                'ids'          => $valid_ids,
-                'anxiety_avg'  => $anxiety_avg,
-                'content_type' => $content_type,
-                'category'     => $category,
-                'art_titles'   => $art_titles,
-                'max_b'        => min(5, max(2, count($valid_ids))),
-            ];
-            cli_log("      + [{$title}]");
-            $saved_new++;
-        }
+        $art_titles = db()->query("SELECT title FROM articles WHERE id IN ({$ids_str})")->fetchAll(PDO::FETCH_COLUMN);
+        $new_topics_pending[] = [
+            'title'        => $title,
+            'ids'          => $valid_ids,
+            'anxiety_avg'  => $anxiety_avg,
+            'content_type' => $content_type,
+            'category'     => $category,
+            'art_titles'   => $art_titles,
+            'max_b'        => min(5, max(2, count($valid_ids))),
+        ];
+        cli_log("      + [{$title}]");
+        $saved_new++;
     }
 
     // Batch bullets for new topics
@@ -258,38 +245,17 @@ function save_clusters(array $clusters, array $article_ids): array {
         }
     }
 
-    // Regenerate bullets for updated existing topics
-    if (!empty($topics_needing_bullets)) {
-        $bullets_tpl = get_prompt('bullets');
-        foreach ($topics_needing_bullets as $topic_id => $title) {
-            $art_titles = db()->query(
-                "SELECT a.title FROM articles a JOIN article_topics ato ON ato.article_id = a.id WHERE ato.topic_id = {$topic_id}"
-            )->fetchAll(PDO::FETCH_COLUMN);
-            if (empty($art_titles)) continue;
-            $max_b     = min(5, max(2, count($art_titles)));
-            $art_list  = implode("\n", array_map(fn($t) => "- {$t}", $art_titles));
-            $bp_prompt = str_replace(['{{topic}}','{{articles}}','{{num_bullets}}'], [$title, $art_list, (string)$max_b], $bullets_tpl);
-            $raw_b     = call_perplexity($bp_prompt);
-            $bullets   = json_decode(extract_json($raw_b), true) ?? ["No summary available."];
-            $bullets   = array_map('trim', array_slice(dedupe_bullets($bullets), 0, $max_b));
-            db()->prepare('DELETE FROM topic_bullets WHERE topic_id = ?')->execute([$topic_id]);
-            $st = db()->prepare('INSERT INTO topic_bullets (topic_id, bullet, display_order) VALUES (?, ?, ?)');
-            foreach ($bullets as $j => $b) $st->execute([$topic_id, $b, $j]);
-            cli_log("      ↺ [{$topic_id}] {$title}");
-        }
-    }
-
-    return [$saved_new, $saved_existing];
+    return [$saved_new, 0];
 }
 
 function run_batch(array $articles, string $tag): void {
     global $cluster_prompt_tpl, $total_new, $total_existing;
 
-    $title_lines    = build_title_lines($articles);   // titles only for clustering
-    $existing_lines = existing_topics_lines();
+    $title_lines = build_title_lines($articles);   // titles only for clustering
+    // Topics are immutable — we don't pass existing topics to the AI.
     $prompt = str_replace(
         ['{{existing_topics}}', '{{articles}}', '{{category}}'],
-        [$existing_lines, $title_lines, $tag],
+        ['(none — always create new topics)', $title_lines, $tag],
         $cluster_prompt_tpl
     );
 
@@ -306,6 +272,7 @@ function run_batch(array $articles, string $tag): void {
     $total_new      += $n;
     $total_existing += $e;
 }
+} // end if(!function_exists('save_clusters'))
 
 // ── Process each tag group ────────────────────────────────────────────────────
 $seen_ids = [];
@@ -318,7 +285,7 @@ foreach ($tag_groups as $group) {
     if ($count <= 50) {
         // Small group — one call
         $articles = fetch_tag_articles($tag1, null, $seen_ids);
-        if (count($articles) >= 2) {
+        if (count($articles) >= 3) {
             run_batch($articles, $tag1);
             foreach ($articles as $a) $seen_ids[] = (int)$a['id'];
         }
@@ -330,7 +297,7 @@ foreach ($tag_groups as $group) {
         foreach ($subtags as $sub) {
             $tag2     = $sub['tag'];
             $articles = fetch_tag_articles($tag1, $tag2, array_merge($seen_ids, $local_seen));
-            if (count($articles) < 2) continue;
+            if (count($articles) < 3) continue;
 
             cli_log("  [{$tag1} + {$tag2}] " . count($articles) . " articles");
             run_batch($articles, "{$tag1} + {$tag2}");
@@ -339,7 +306,7 @@ foreach ($tag_groups as $group) {
 
         // Remaining articles with tag1 not caught by any sub-tag
         $articles = fetch_tag_articles($tag1, null, array_merge($seen_ids, $local_seen));
-        if (count($articles) >= 2) {
+        if (count($articles) >= 3) {
             cli_log("  [{$tag1} / other] " . count($articles) . " articles");
             run_batch($articles, $tag1);
             foreach ($articles as $a) $local_seen[] = (int)$a['id'];
@@ -358,7 +325,7 @@ $remaining = db()->query("
     ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 ")->fetchAll();
 
-if (count($remaining) >= 2) {
+if (count($remaining) >= 3) {
     cli_log("\n[misc] " . count($remaining) . " remaining articles");
     run_batch($remaining, 'misc');
 }
