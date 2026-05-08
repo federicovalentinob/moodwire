@@ -376,7 +376,7 @@ function call_perplexity(string $prompt, string $system = ''): string {
 
     $payload = json_encode([
         'model'      => PERPLEXITY_MODEL,
-        'max_tokens' => 16000,
+        'max_tokens' => 32000,
         'messages'   => $messages,
     ]);
 
