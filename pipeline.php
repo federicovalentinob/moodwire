@@ -4,10 +4,10 @@ require_once __DIR__ . '/functions.php';
 
 // ── Step selection ────────────────────────────────────────────────────────────
 // Default: all steps. Pass step names as args to run only those:
-//   php pipeline.php synthesize
-//   php pipeline.php fetch tag
-//   php pipeline.php tag synthesize
-$all_steps    = ['fetch', 'images', 'normalize', 'tag', 'synthesize'];
+//   php pipeline.php embed
+//   php pipeline.php fetch embed
+//   php pipeline.php cluster label
+$all_steps    = ['fetch', 'images', 'normalize', 'embed', 'cluster', 'label'];
 $args         = array_slice($argv ?? [], 1);
 $wanted       = $args ? array_intersect($all_steps, $args) : $all_steps;
 $run          = array_fill_keys($wanted, true);
@@ -40,53 +40,20 @@ if (should_run('fetch', $run)) {
     echo "\n[Fetch/Images/Normalize] Skipped.\n";
 }
 
-// ── Step 4: Tag ───────────────────────────────────────────────────────────────
-if (should_run('tag', $run)) {
-    $unprocessed = count_unprocessed_articles();
-    if (!$unprocessed) {
-        echo "\n[Tag] Skipped — no unprocessed articles.\n";
-    } else {
-        echo "\n[Tag] Starting...\n";
-        $rounds = 0;
-        while (count_unprocessed_articles()) {
-            include __DIR__ . '/tag.php';
-            $rounds++;
-            if ($rounds > 20) break;
-        }
-        echo "[Tag] Done after {$rounds} round(s).\n";
-    }
+// Mark articles as processed so cluster/label steps treat them as eligible.
+// (The legacy tag step used to do this; we no longer tag per-article.)
+if (array_intersect(['embed', 'cluster', 'label'], array_keys($run))) {
+    db()->exec("UPDATE articles SET processed = 1 WHERE processed = 0");
 }
 
-// ── Step 5: Synthesize ────────────────────────────────────────────────────────
-if (should_run('synthesize', $run)) {
-    $unassigned = (int) db()->query('
-        SELECT COUNT(*) FROM articles a
-        LEFT JOIN article_topics ato ON ato.article_id = a.id
-        WHERE a.processed = 1 AND ato.article_id IS NULL
-    ')->fetchColumn();
+// ── Step 4: Embed ─────────────────────────────────────────────────────────────
+if (should_run('embed', $run))   step('Embed',   'embed.php');
 
-    if (!$unassigned) {
-        echo "\n[Synthesize] Skipped — no unassigned articles.\n";
-    } else {
-        echo "\n[Synthesize] Starting...\n";
-        $rounds = 0;
-        $prev   = -1;
-        while ($rounds < 15) {
-            $unassigned = (int) db()->query('
-                SELECT COUNT(*) FROM articles a
-                LEFT JOIN article_topics ato ON ato.article_id = a.id
-                WHERE a.processed = 1 AND ato.article_id IS NULL
-            ')->fetchColumn();
-            if ($unassigned === 0)      { echo "All articles assigned.\n"; break; }
-            if ($unassigned === $prev)  { echo "No progress — stopping.\n"; break; }
-            $prev = $unassigned;
-            echo "[Synthesize round " . ($rounds + 1) . "] {$unassigned} unassigned...\n";
-            include __DIR__ . '/synthesize.php';
-            $rounds++;
-        }
-        echo "[Synthesize] Done after {$rounds} round(s).\n";
-    }
-}
+// ── Step 5: Cluster ───────────────────────────────────────────────────────────
+if (should_run('cluster', $run)) step('Cluster', 'cluster.php');
+
+// ── Step 6: Label ─────────────────────────────────────────────────────────────
+if (should_run('label', $run))   step('Label',   'label.php');
 
 log_action('pipeline', 'success', 'Pipeline completed (' . implode('+', array_keys($run)) . ')');
 echo "\nPipeline complete.\n";

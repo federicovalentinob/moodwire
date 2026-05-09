@@ -449,12 +449,12 @@ function dedupe_bullets(array $bullets): array {
 }
 
 function trim_title(string $title): string {
-    $words = explode(' ', trim($title));
-    return implode(' ', array_slice($words, 0, 7));
+    // No-op kept for backward compat with legacy synthesize.php callers.
+    return trim($title);
 }
 
 function save_topic(string $title, array $bullets, float $anxiety_avg, array $article_ids, string $content_type = 'informative', ?string $category = null): int {
-    $title = trim_title($title);
+    $title = trim($title);
     $valid_types = ['informative', 'educative', 'entertainment'];
     if (!in_array($content_type, $valid_types)) $content_type = 'informative';
     $valid_cats = ['Politics','Geopolitics','Economy','Technology','Science','Health','Society','Crime','Environment','Sports','Entertainment','Travel','Food'];
@@ -574,4 +574,85 @@ function anxiety_label(float $score): string {
     if ($score <= 3) return 'Low';
     if ($score <= 6) return 'Medium';
     return 'High';
+}
+
+// ─── OpenAI ──────────────────────────────────────────────────────────────────
+
+function call_openai_embeddings(array $inputs): array {
+    if (empty($inputs)) return [];
+    $payload = json_encode([
+        'model' => defined('EMBEDDING_MODEL') ? EMBEDDING_MODEL : 'text-embedding-3-small',
+        'input' => $inputs,
+    ]);
+    $ch = curl_init('https://api.openai.com/v1/embeddings');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_TIMEOUT        => 60,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . OPENAI_API_KEY,
+            'Content-Type: application/json',
+        ],
+    ]);
+    $raw  = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    if ($code !== 200) {
+        cli_log("OpenAI embeddings HTTP $code: " . substr($raw, 0, 300));
+        return [];
+    }
+    $resp = json_decode($raw, true);
+    return $resp['data'] ?? [];
+}
+
+function call_openai_chat_json(string $system, string $user, array $schema, string $schema_name = 'topic_label'): ?array {
+    $payload = json_encode([
+        'model'    => defined('LABEL_MODEL') ? LABEL_MODEL : 'gpt-4o-mini',
+        'messages' => [
+            ['role' => 'system', 'content' => $system],
+            ['role' => 'user',   'content' => $user],
+        ],
+        'response_format' => [
+            'type' => 'json_schema',
+            'json_schema' => [
+                'name'   => $schema_name,
+                'strict' => true,
+                'schema' => $schema,
+            ],
+        ],
+    ]);
+    $ch = curl_init('https://api.openai.com/v1/chat/completions');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_TIMEOUT        => 60,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . OPENAI_API_KEY,
+            'Content-Type: application/json',
+        ],
+    ]);
+    $raw  = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    if ($code !== 200) {
+        cli_log("OpenAI chat HTTP $code: " . substr($raw, 0, 300));
+        return null;
+    }
+    $resp    = json_decode($raw, true);
+    $content = $resp['choices'][0]['message']['content'] ?? '';
+    $obj     = json_decode($content, true);
+    return is_array($obj) ? $obj : null;
+}
+
+// Pack/unpack a 1-D float vector as little-endian float32 binary (4 bytes/elem).
+function pack_vector(array $v): string  { return pack('f*', ...$v); }
+function unpack_vector(string $b): array { return array_values(unpack('f*', $b)); }
+
+function l2_normalize(array $v): array {
+    $n = 0.0;
+    foreach ($v as $x) $n += $x * $x;
+    $n = sqrt($n);
+    if ($n <= 0) return $v;
+    foreach ($v as $i => $x) $v[$i] = $x / $n;
+    return $v;
 }

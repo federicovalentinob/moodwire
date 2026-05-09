@@ -6,7 +6,7 @@
 <title>Moodwire</title>
 <style>
 :root {
-  --bg:       #f2f2f2;
+  --bg:       #ffffff;
   --surface:  #ffffff;
   --border:   #e8e8e8;
   --text:     #0d0d0d;
@@ -44,7 +44,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 #toggle-prefs-btn.open { background:var(--text); border-color:var(--text); color:#fff; }
 
 /* ── Anxiety widget ─────────────────────────────────────────────────────── */
-#anxiety-widget { border-top:1px solid var(--border); padding:10px 0 0; margin-bottom:4px; }
+#anxiety-widget { border-top:1px solid var(--border); padding:0; margin-bottom:10px; }
 #anxiety-widget-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
 #anxiety-widget-title { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:1.2px; color:var(--muted); }
 #anxiety-chips { display:flex; gap:4px; }
@@ -59,12 +59,24 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 .anx-chip.active.low    { background:var(--low);  border-color:var(--low);  }
 .anx-chip.active.mid    { background:var(--mid);  border-color:var(--mid);  }
 .anx-chip.active.high   { background:var(--high); border-color:var(--high); }
-.anx-row { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
-.anx-row:last-child { margin-bottom:10px; }
-.anx-row-label { font-size:9px; font-weight:800; width:38px; flex-shrink:0; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px; }
-.anx-track { flex:1; height:6px; background:#ebebeb; border-radius:3px; overflow:hidden; }
-.anx-fill { height:100%; border-radius:3px; transition:width 0.6s cubic-bezier(0.22,1,0.36,1),background 0.4s; width:0%; }
-.anx-num { font-size:13px; font-weight:800; min-width:26px; text-align:right; letter-spacing:-0.3px; }
+/* ── Anxiometer — twin semicircle gauges ──────────────────────────────────── */
+#anxiety-widget-title { font-size:13px; font-weight:900; letter-spacing:0.3px; color:#0d0d0d; }
+#gauge-wrap { display:flex; justify-content:center; margin:0 -16px 2px; }
+#gauge-svg { width:100%; max-width:none; height:auto; overflow:visible; }
+.gauge-zone { cursor:pointer; fill:none; stroke-width:14; stroke-linecap:butt; transition:opacity 0.25s; }
+.gauge-zone.dimmed { opacity:0.28; }
+.gauge-chassis { fill:none; stroke:#eaeaea; stroke-width:14; stroke-linejoin:round; stroke-linecap:butt; pointer-events:none; }
+.gauge-inner-shadow { fill:none; stroke:rgba(0,0,0,0.18); stroke-width:1.5; stroke-linecap:butt; pointer-events:none; }
+.gauge-title { font-size:10px; font-weight:800; fill:#0d0d0d; letter-spacing:1px; font-family:inherit; }
+.gauge-axis-label { font-size:7px; font-weight:700; fill:#aaa; letter-spacing:0.5px; font-family:inherit; }
+.gauge-value { font-size:18px; font-weight:900; fill:#0d0d0d; font-family:inherit; }
+
+/* needles — rotate around their gauge center */
+.needle-grp { transition:transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+#needle-global { transform-box:view-box; transform-origin:70px 88px; color:#0d0d0d; }
+#needle-yours  { transform-box:view-box; transform-origin:210px 88px; color:#3b82f6; }
+.needle-line  { stroke:currentColor; stroke-width:2.5; stroke-linecap:round; fill:none; }
+.needle-hub   { fill:currentColor; }
 
 /* ── Category chips ─────────────────────────────────────────────────────── */
 #filters {
@@ -85,65 +97,126 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 /* ── Feed ───────────────────────────────────────────────────────────────── */
 #feed { flex:1; overflow-y:auto; padding:10px 12px 12px; touch-action:pan-y; -webkit-overflow-scrolling:touch; }
 
-/* ── Card ───────────────────────────────────────────────────────────────── */
+/* ── Card (editorial / borderless) ──────────────────────────────────────── */
 .card {
-  background:var(--surface); border-radius:var(--radius);
-  margin-bottom:10px; overflow:hidden;
-  box-shadow:var(--shadow); border:1px solid var(--border);
+  background:transparent; border:none; box-shadow:none; border-radius:0;
+  padding:0; margin:0;
   position:relative; cursor:pointer; user-select:none; touch-action:pan-y;
 }
+.card + .card { border-top:1px solid #f0f0f0; margin-top:32px; padding-top:32px; }
 .card.slide-in { animation:slideIn 0.35s cubic-bezier(0.22,1,0.36,1) both; }
 @keyframes slideIn {
-  from { opacity:0; transform:translateY(18px) scale(0.98); }
-  to   { opacity:1; transform:translateY(0)    scale(1); }
+  from { opacity:0; transform:translateY(18px); }
+  to   { opacity:1; transform:translateY(0); }
 }
 #saved-overlay-card .card { touch-action:none; }
 .card.swiping { transition:none !important; }
 .swipe-overlay { display:none; }
 
-/* accent strip at top of card */
-.card-accent { height:3px; width:100%; display:block; }
+.card-accent { display:none; }  /* dropped in editorial layout */
 
-/* hero image */
-.card-hero { width:100%; height:168px; overflow:hidden; position:relative; background:#ebebeb; }
-.card-hero img { width:100%; height:100%; object-fit:cover; display:block; }
-.card-hero-badge {
-  position:absolute; bottom:8px; right:10px;
-  font-size:10px; font-weight:800; padding:3px 9px; border-radius:6px;
-  color:#fff; letter-spacing:0.2px; text-shadow:0 1px 3px rgba(0,0,0,0.4);
+/* meta — two stacked rows on a soft mood-tinted underlay */
+.card-meta {
+  position:relative;
+  display:flex; flex-direction:column; gap:10px; margin-bottom:18px;
+  text-transform:uppercase; line-height:1;
+  padding:16px 56px 16px 18px; /* right-side room for the absolute save button */
+  background:#f5f5f5;
+  border-radius:8px;
 }
-
-/* card body */
-.card-body { padding:12px 14px 12px; }
-.card-eyebrow { display:flex; align-items:center; gap:6px; margin-bottom:6px; flex-wrap:wrap; }
-.badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:5px; letter-spacing:0.3px; text-transform:uppercase; }
-.badge-cat { background:#f0f0f0; color:#555; }
-.badge-geo { background:#ede9fe; color:#7c3aed; }
-.badge-new { background:#dcfce7; color:#15803d; }
-.card-time { font-size:11px; color:var(--muted); margin-left:auto; }
-.card-title { font-size:18px; font-weight:800; line-height:1.25; letter-spacing:-0.4px; color:var(--text); margin-bottom:8px; }
-.card-foot { display:flex; align-items:center; justify-content:space-between; }
-.card-article-count { font-size:11px; color:var(--muted); font-weight:500; }
-.anxiety-pip { font-size:10px; font-weight:800; padding:3px 8px; border-radius:6px; color:#fff; flex-shrink:0; }
+.card-meta-row { display:flex; align-items:center; flex-wrap:wrap; gap:0; }
+.card-meta-row > * { display:inline-flex; align-items:center; line-height:1; }
+.card-meta-row > * + *::before {
+  content:""; display:inline-block; width:4px; height:4px; border-radius:50%;
+  background:currentColor; opacity:0.4; margin:0 10px; vertical-align:middle;
+}
+.card-meta-row.primary {
+  font-size:15px; font-weight:800; letter-spacing:0.2px; color:#111;
+}
+.card-meta-row.primary .badge { color:inherit; }
+.card-meta-row.secondary {
+  font-size:11px; font-weight:700; letter-spacing:0.4px;
+}
+.card-time { color:inherit; }
+.badge { font-size:inherit; font-weight:inherit; padding:0; background:none; border:none; border-radius:0; letter-spacing:inherit; text-transform:inherit; }
+.badge-cat { color:#777; }
+.badge-geo { color:#7c3aed; }
+.badge-new { color:#15803d; }
 .card-save-btn {
-  background:none; border:none; cursor:pointer; padding:4px;
+  position:absolute; top:50%; right:14px; transform:translateY(-50%);
+  background:none; border:none; cursor:pointer; padding:6px;
   color:var(--muted); border-radius:6px; display:flex; align-items:center;
   transition:color 0.15s, background 0.15s; flex-shrink:0;
+  z-index:2;
 }
 .card-save-btn:hover { color:var(--text); background:rgba(0,0,0,0.05); }
 .card-save-btn.saved { color:var(--accent); }
 
+/* title + byline */
+.card-body { padding:0; position:relative; }
+.card-title {
+  font-size:23px; font-weight:800; line-height:1.28; letter-spacing:-0.5px;
+  color:#111; margin-bottom:14px;
+}
+.card-byline {
+  font-size:13px; color:#666; margin-bottom:12px;
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+}
+
+/* hero image — now BELOW the title */
+.card-hero { width:100%; max-height:260px; overflow:hidden; position:relative; background:#ebebeb; border-radius:8px; margin:2px 0 0; }
+.card-hero img { width:100%; height:100%; object-fit:cover; display:block; }
+/* hero overlay badge (kept for legacy; not currently rendered) */
+.card-hero-badge {
+  position:absolute; bottom:8px; right:10px;
+  font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:999px;
+  color:#fff; letter-spacing:0.3px;
+  display:inline-flex; align-items:center; gap:4px;
+  text-transform:uppercase; flex-shrink:0;
+  box-shadow:0 2px 6px rgba(0,0,0,0.2);
+  text-shadow:0 1px 2px rgba(0,0,0,0.4);
+}
+.card-hero-badge b { font-size:13px; font-weight:900; letter-spacing:-0.3px; }
+
+/* anxiety pip in meta row — flat, inherits typography, color via mood */
+.anxiety-pip {
+  display:inline-flex; align-items:center; gap:3px;
+  background:none !important; box-shadow:none; padding:0; border-radius:0;
+  color:inherit; font:inherit; letter-spacing:inherit; text-transform:inherit;
+  flex-shrink:0;
+}
+.anxiety-pip b { font-weight:900; }
+.anx-bubble-emoji { font-size:0.95em; line-height:1; filter:none; display:inline-block; }
+
+.card-article-count { font-size:13px; color:#666; font-weight:500; }
+.card-meta .card-article-count { font-size:inherit; font-weight:inherit; color:inherit; letter-spacing:inherit; }
+
 /* expanded bullets */
-.card-bullets { border-top:1px solid var(--border); padding:10px 14px 12px; }
-.card-bullets li { font-size:14px; color:#333; line-height:1.55; padding:3px 0 3px 16px; list-style:none; position:relative; }
-.card-bullets li::before { content:'·'; position:absolute; left:2px; color:var(--muted); font-size:20px; line-height:0.85; }
+.card-bullets { padding:4px 4px 4px; margin-top:18px; }
+.card-bullets li {
+  font-size:16px; color:#222; line-height:1.65; font-weight:400;
+  padding:7px 0 7px 22px; list-style:none; position:relative;
+}
+.card-bullets li::before {
+  content:""; position:absolute; left:6px; top:15px;
+  width:5px; height:5px; border-radius:50%; background:#bbb;
+}
 
 /* tap hint */
 .card-tap-hint {
-  padding:8px 14px 10px;
+  padding:14px 0 2px;
   font-size:11px; font-weight:600; color:var(--muted);
-  text-align:center; letter-spacing:0.2px;
+  text-align:center; letter-spacing:0.4px;
 }
+
+/* ── Anxiety mood styling — secondary row text + meta-block underlay ──────── */
+.card[data-anx-level="cool"]  .card-meta-row.secondary { color:#16a34a; }
+.card[data-anx-level="hot"]   .card-meta-row.secondary { color:#ea580c; }
+.card[data-anx-level="panic"] .card-meta-row.secondary { color:#dc2626; }
+
+.card[data-anx-level="cool"]  .card-meta { background:#f0fdf4; }
+.card[data-anx-level="hot"]   .card-meta { background:#fff7ed; }
+.card[data-anx-level="panic"] .card-meta { background:#fef2f2; }
 
 /* articles section */
 .articles-section { border-top:1px solid var(--border); }
@@ -165,30 +238,65 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 .article-src { font-size:11px; color:var(--muted); margin-top:2px; }
 .article-anx { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
 
-/* ── Preferences bar ────────────────────────────────────────────────────── */
-#prefs { padding:0 14px 0; display:flex; flex-direction:column; gap:4px; background:var(--surface); }
+/* ── Preferences word cloud ──────────────────────────────────────────────── */
+#prefs {
+  padding:18px 16px 16px; display:flex; flex-direction:column; gap:14px;
+  background:var(--surface);
+  max-height:50vh; overflow-y:auto;
+  scrollbar-width:thin;
+}
 .prefs-header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:8px 0 4px; border-bottom:1px solid var(--border); margin-bottom:4px;
+  padding:0 0 8px; border-bottom:1px solid var(--border);
 }
-.prefs-title { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:var(--muted); }
+.prefs-title { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:1.2px; color:var(--muted); }
 .prefs-clear-btn {
-  background:none; border:1px solid var(--border); color:var(--muted);
-  font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px;
-  cursor:pointer; letter-spacing:0.2px; transition:all 0.15s;
+  background:none; border:1.5px solid var(--border); color:var(--muted);
+  font-size:13px; font-weight:700; padding:7px 18px; border-radius:24px;
+  cursor:pointer; letter-spacing:0.3px; transition:all 0.15s;
+  text-transform:uppercase;
 }
+.prefs-clear-btn:hover { color:var(--text); border-color:var(--text); }
 .prefs-clear-btn:active { opacity:0.7; }
-#country-row { border-top:1px solid var(--border); padding-top:6px; margin-top:2px; }
-.pref-row { display:flex; align-items:center; gap:6px; overflow:hidden; }
-.pref-label { font-size:11px; font-weight:800; flex-shrink:0; width:16px; }
+.prefs-actions { display:flex; gap:8px; }
+
+/* a row = label + cloud */
+.pref-row { display:flex; align-items:flex-start; gap:10px; }
+.pref-label {
+  font-size:11px; font-weight:800; flex-shrink:0; width:20px;
+  padding-top:6px; color:var(--muted); text-align:center;
+}
 .pref-label.like { color:var(--low); }
-.pref-tags { display:flex; gap:4px; overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; }
+
+/* the actual word cloud — tightly tiled, centered packing */
+.pref-tags {
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:center;
+  gap:4px 10px; line-height:1.15;
+  overflow:visible;
+}
 .pref-tags::-webkit-scrollbar { display:none; }
-.pref-tag { font-size:11px; padding:3px 8px; border-radius:8px; font-weight:600; flex-shrink:0; }
-.pref-tag.like { background:rgba(22,163,74,0.1); color:var(--low); border:1px solid rgba(22,163,74,0.25); }
-.tag-del { background:none; border:none; cursor:pointer; font-size:12px; line-height:1; padding:0 0 0 3px; opacity:0.4; color:inherit; vertical-align:middle; }
-.tag-del:hover { opacity:1; }
-.pref-empty { font-size:11px; color:var(--muted); font-style:italic; flex-shrink:0; }
+
+/* a single word in the cloud — all rendered in black */
+.pref-tag {
+  display:inline-flex; align-items:baseline; gap:3px;
+  padding:0; border:none; background:none;
+  font-weight:800; letter-spacing:-0.2px;
+  color:#0d0d0d;
+  cursor:default; flex-shrink:0;
+  transition:opacity 0.15s;
+}
+.pref-tag.negative { color:#0d0d0d; opacity:0.45; }
+.pref-tag.country  { color:#0d0d0d; }
+.pref-tag .tag-del {
+  background:none; border:none; cursor:pointer;
+  font-size:0.6em; line-height:1; padding:0 0 0 2px;
+  color:inherit; opacity:0; transition:opacity 0.12s;
+  vertical-align:middle;
+}
+.pref-tag:hover .tag-del { opacity:0.55; }
+.pref-tag .tag-del:hover { opacity:1; }
+
+.pref-empty { font-size:12px; color:var(--muted); font-style:italic; }
 #prefs-divider { height:1px; background:var(--border); margin:6px 0 0; }
 
 /* ── Saved strip ─────────────────────────────────────────────────────────── */
@@ -256,26 +364,44 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
       <button id="toggle-prefs-btn" onclick="togglePrefs()" style="display:none">Preferences</button>
     </div>
 
-    <!-- Anxiety widget -->
+    <!-- Anxiometer (cartoonish gauge — zones double as filter buttons) -->
     <div id="anxiety-widget">
-      <div id="anxiety-widget-header">
-        <span id="anxiety-widget-title">Anxiety Index</span>
-        <div id="anxiety-chips">
-          <button class="anx-chip active" data-filter="">All</button>
-          <button class="anx-chip low"    data-filter="low">Low</button>
-          <button class="anx-chip mid"    data-filter="medium">Mid</button>
-          <button class="anx-chip high"   data-filter="high">High</button>
-        </div>
-      </div>
-      <div class="anx-row">
-        <span class="anx-row-label">Global</span>
-        <div class="anx-track"><div id="global-bar" class="anx-fill"></div></div>
-        <span id="global-val" class="anx-num" style="color:var(--muted)">—</span>
-      </div>
-      <div class="anx-row" id="yours-row" style="display:none">
-        <span class="anx-row-label">Yours</span>
-        <div class="anx-track"><div id="yours-bar" class="anx-fill"></div></div>
-        <span id="yours-val" class="anx-num"></span>
+      <div id="gauge-wrap">
+        <svg viewBox="0 20 280 110" id="gauge-svg" aria-label="Anxiometers">
+          <!-- LEFT gauge: Current feed (5 colored segments, 3 filter buckets) -->
+          <g id="gauge-global">
+            <!-- 5 colored segments -->
+            <path class="gauge-zone" data-filter="low"    d="M 27 88        A 43 43 0 0 1 35.21 62.72"  stroke="#15803d" />
+            <path class="gauge-zone" data-filter="low"    d="M 35.21 62.72  A 43 43 0 0 1 56.71 47.11"  stroke="#65a30d" />
+            <path class="gauge-zone" data-filter="medium" d="M 56.71 47.11  A 43 43 0 0 1 83.29 47.11"  stroke="#eab308" />
+            <path class="gauge-zone" data-filter="high"   d="M 83.29 47.11  A 43 43 0 0 1 104.79 62.72" stroke="#ea580c" />
+            <path class="gauge-zone" data-filter="high"   d="M 104.79 62.72 A 43 43 0 0 1 113 88"       stroke="#dc2626" />
+            <!-- inner-shadow line at the outer edge of the colored band -->
+            <path class="gauge-inner-shadow" d="M 20.5 88 A 49.5 49.5 0 0 1 119.5 88" />
+            <g id="needle-global" class="needle-grp">
+              <line class="needle-line" x1="70" y1="88" x2="70" y2="50" />
+              <circle class="needle-hub" cx="70" cy="88" r="6" />
+            </g>
+            <text x="70"  y="80"  text-anchor="middle" class="gauge-value" id="value-global">—</text>
+            <text x="70"  y="108" text-anchor="middle" class="gauge-title">CURRENT FEED</text>
+          </g>
+
+          <!-- RIGHT gauge: You (hidden until personal data exists) -->
+          <g id="gauge-yours" style="display:none">
+<path class="gauge-zone" data-filter="low"    d="M 167 88        A 43 43 0 0 1 175.21 62.72" stroke="#15803d" />
+            <path class="gauge-zone" data-filter="low"    d="M 175.21 62.72  A 43 43 0 0 1 196.71 47.11" stroke="#65a30d" />
+            <path class="gauge-zone" data-filter="medium" d="M 196.71 47.11  A 43 43 0 0 1 223.29 47.11" stroke="#eab308" />
+            <path class="gauge-zone" data-filter="high"   d="M 223.29 47.11  A 43 43 0 0 1 244.79 62.72" stroke="#ea580c" />
+            <path class="gauge-zone" data-filter="high"   d="M 244.79 62.72  A 43 43 0 0 1 253 88"       stroke="#dc2626" />
+            <path class="gauge-inner-shadow" d="M 160.5 88 A 49.5 49.5 0 0 1 259.5 88" />
+            <g id="needle-yours" class="needle-grp">
+              <line class="needle-line" x1="210" y1="88" x2="210" y2="50" />
+              <circle class="needle-hub" cx="210" cy="88" r="6" />
+            </g>
+            <text x="210" y="80"  text-anchor="middle" class="gauge-value" id="value-yours">—</text>
+            <text x="210" y="108" text-anchor="middle" class="gauge-title">YOU</text>
+          </g>
+        </svg>
       </div>
     </div>
 
@@ -289,14 +415,15 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
   <div id="prefs" style="display:none">
     <div class="prefs-header">
       <span class="prefs-title">Preferences</span>
-      <button class="prefs-clear-btn" onclick="clearPreferences()">Clear</button>
+      <div class="prefs-actions">
+        <button class="prefs-clear-btn" onclick="clearPreferences()">Clear</button>
+        <button class="prefs-clear-btn" onclick="togglePrefs()">Hide</button>
+      </div>
     </div>
     <div class="pref-row">
-      <span class="pref-label like">✓</span>
       <div class="pref-tags" id="liked-tags"></div>
     </div>
     <div class="pref-row" id="country-row" style="display:none">
-      <span class="pref-label" style="color:#6b7280">🌍</span>
       <div class="pref-tags" id="country-tags"></div>
     </div>
   </div>
@@ -347,7 +474,27 @@ async function fetchTopics(count = STACK_SIZE, mode = 'mixed') {
   const res  = await fetch('api.php?action=topics&' + params);
   const data = await res.json();
   data.topics.forEach(t => shownIds.add(t.id));
+  // Move the black "Current news level" arrow to reflect the current filter's average
+  if (data.current_anxiety_avg != null) {
+    globalAnxietyAvg = parseFloat(data.current_anxiety_avg);
+    moveGlobalNeedle();
+  }
   return data.topics;
+}
+
+function zoneColor(v) {
+  if (v <= 10/3) return '#16a34a'; // cool zone
+  if (v <= 20/3) return '#f59e0b'; // hot zone
+  return '#dc2626';                 // panic zone
+}
+
+function moveGlobalNeedle() {
+  if (globalAnxietyAvg == null) return;
+  const angle = anxValueToRotation(globalAnxietyAvg);
+  document.getElementById('needle-global').style.transform = `rotate(${angle}deg)`;
+  document.getElementById('needle-global').style.color = zoneColor(globalAnxietyAvg);
+  const v = document.getElementById('value-global');
+  if (v) v.textContent = globalAnxietyAvg.toFixed(1);
 }
 
 // ── Load initial stack ────────────────────────────────────────────────────
@@ -414,12 +561,14 @@ function renderCard(t, i) {
   const delay = Math.min(i * 40, 400);
   const bullets = t.bullets.map(b => `<li>${esc(b)}</li>`).join('');
 
+  const anxLevel = t.anxiety_avg >= 7 ? 'panic' : (t.anxiety_avg >= 4 ? 'hot' : 'cool');
+  const anxEmoji = anxLevel === 'panic' ? '⚠️' : (anxLevel === 'hot' ? '🔥' : '🌿');
+
   const heroArticle = t.articles.find(a => a.image_path);
   const hero = heroArticle
     ? `<div class="card-hero">
         <img src="${esc(heroArticle.image_path)}" alt="" loading="lazy"
              onerror="this.closest('.card-hero').remove()">
-        <div class="card-hero-badge" style="background:${t.anxiety_color}">anxiety ${t.anxiety_avg.toFixed(1)}</div>
        </div>`
     : '';
 
@@ -438,32 +587,33 @@ function renderCard(t, i) {
     </a>`;
   }).join('');
 
-  const anxPip = heroArticle ? '' :
-    `<span class="anxiety-pip" style="background:${t.anxiety_color}">anxiety ${t.anxiety_avg.toFixed(1)}</span>`;
+  const anxPip =
+    `<span class="anxiety-pip" style="background:${t.anxiety_color}"><span class="anx-bubble-emoji">${anxEmoji}</span> anxiety <b>${t.anxiety_avg.toFixed(1)}</b></span>`;
+
+  const articleCountTxt = `${t.articles.length} article${t.articles.length !== 1 ? 's' : ''}`;
 
   return `
-  <div class="card" data-id="${t.id}" data-state="0" data-anxiety="${t.anxiety_avg}"
+  <div class="card" data-id="${t.id}" data-state="${expand ? 1 : 0}" data-anxiety="${t.anxiety_avg}" data-anx-level="${anxLevel}"
        style="animation-delay:${delay}ms"
-       onclick="tapCard(${t.id}, this)" data-state="${expand ? 1 : 0}">
-    <div class="card-accent" style="background:${t.anxiety_color}"></div>
-    ${hero}
+       onclick="tapCard(${t.id}, this)">
     <div class="card-body">
-      <div class="card-eyebrow">
-        ${t.is_new   ? `<span class="badge badge-new">NEW</span>` : ''}
-        ${t.category ? `<span class="badge badge-cat">${esc(t.category)}</span>` : ''}
-        ${t.geo      ? `<span class="badge badge-geo">${esc(t.geo)}</span>` : ''}
-        <span class="card-time">${esc(t.time_ago ?? '')}</span>
-      </div>
-      <div class="card-title">${esc(t.title)}</div>
-      <div class="card-foot">
-        <span class="card-article-count">${t.articles.length} article${t.articles.length !== 1 ? 's' : ''}</span>
-        <div style="display:flex;align-items:center;gap:8px">
+      <div class="card-meta">
+        <button class="card-save-btn" onclick="keepCard(${t.id},this,event)" title="Keep">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        </button>
+        <div class="card-meta-row primary">
+          ${t.is_new   ? `<span class="badge badge-new">NEW</span>` : ''}
+          ${t.category ? `<span class="badge badge-cat">${esc(t.category)}</span>` : ''}
+          ${t.geo      ? `<span class="badge badge-geo">${esc(t.geo)}</span>` : ''}
+        </div>
+        <div class="card-meta-row secondary">
           ${anxPip}
-          <button class="card-save-btn" onclick="keepCard(${t.id},this,event)" title="Keep">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-          </button>
+          <span class="card-article-count">${articleCountTxt}</span>
+          <span class="card-time">${esc(t.time_ago ?? '')}</span>
         </div>
       </div>
+      <div class="card-title">${esc(t.title)}</div>
+      ${hero}
     </div>
 
     <ul class="card-bullets card-section" style="display:${expand ? '' : 'none'}">${bullets}</ul>
@@ -486,7 +636,7 @@ function keepCard(id, btn, event) {
   if (btn.classList.contains('saved')) return;
   addToSaved(id, card, card.outerHTML);
   btn.classList.add('saved');
-  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+  btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
 }
 
 // 3-state tap: 0=title only → 1=+bullets → 2=+articles → 0
@@ -499,6 +649,17 @@ function tapCard(id, card) {
   card.querySelector('.card-bullets').style.display        = next >= 1 ? '' : 'none';
   card.querySelector('.card-tap-hint').style.display       = next === 1 ? '' : 'none';
   card.querySelector('.articles-section').style.display    = next >= 2 ? '' : 'none';
+
+  // First open (0 → 1): bump "Your level" needle just like a right-swipe.
+  if (state === 0 && next === 1) {
+    fetch('api.php?action=view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic_id: id, anxiety: parseFloat(card.dataset.anxiety ?? 5) })
+    }).then(r => r.json()).then(data => {
+      if (data.anxiety_avg !== undefined) renderAnxietyMeter(data.anxiety_avg, data.anxiety_count);
+    }).catch(() => {});
+  }
 }
 
 function timeAgo(dateStr) {
@@ -532,12 +693,18 @@ async function loadStats() {
 }
 
 // ── Anxiety filter chips ──────────────────────────────────────────────────
-document.getElementById('anxiety-chips').addEventListener('click', e => {
-  const chip = e.target.closest('.anx-chip');
-  if (!chip) return;
-  document.querySelectorAll('.anx-chip').forEach(c => c.classList.remove('active'));
-  chip.classList.add('active');
-  activeAnxiety = chip.dataset.filter;
+document.getElementById('gauge-svg').addEventListener('click', e => {
+  const zone = e.target.closest('.gauge-zone');
+  if (!zone) return;
+  const f = zone.dataset.filter;
+  if (activeAnxiety === f) {
+    activeAnxiety = '';
+    document.querySelectorAll('.gauge-zone').forEach(z => z.classList.remove('dimmed'));
+  } else {
+    activeAnxiety = f;
+    document.querySelectorAll('.gauge-zone').forEach(z =>
+      z.classList.toggle('dimmed', z.dataset.filter !== f));
+  }
   loadTopics();
 });
 
@@ -741,46 +908,73 @@ function renderPreferences(liked, countries) {
     btn.classList.remove('open');
   }
 
+  // map count to font-size for the word cloud — bigger = more important
+  // size range tightens as tag count grows so everything fits without scrolling
+  const cloudSize = (c, maxAbs, total) => {
+    const minPx = total > 12 ? 10 : 12;
+    const maxPx = total > 12 ? 20 : (total > 8 ? 24 : 28);
+    const scale = maxAbs > 0 ? Math.min(1, Math.abs(c) / maxAbs) : 0;
+    return Math.round(minPx + (maxPx - minPx) * scale);
+  };
+  const likedMax = likedEntries.length ? Math.max(...likedEntries.map(([,c]) => Math.abs(c))) : 0;
+  const countryMax = countryEntries.length ? Math.max(...countryEntries.map(([,c]) => c)) : 0;
+
   document.getElementById('liked-tags').innerHTML =
     likedEntries.length ? likedEntries.map(([t,c]) => {
-      const scoreStyle = c < 0 ? 'color:var(--high)' : '';
-      return `<span class="pref-tag like" style="${c < 0 ? 'opacity:0.7' : ''}">${esc(t)} <b style="${scoreStyle}">${c > 0 ? '+' : ''}${c}</b><button class="tag-del" onclick="removeTag('${esc(t)}','liked')">×</button></span>`;
+      const cls = c < 0 ? 'pref-tag negative' : 'pref-tag';
+      const px  = cloudSize(c, likedMax, likedEntries.length);
+      return `<span class="${cls}" style="font-size:${px}px"
+                title="${esc(t)} (${c > 0 ? '+' : ''}${c})">${esc(t)}<button class="tag-del" onclick="removeTag('${esc(t)}','liked')">×</button></span>`;
     }).join('')
     : '<span class="pref-empty">swipe right to add</span>';
 
   const countryRow = document.getElementById('country-row');
   countryRow.style.display = countryEntries.length ? '' : 'none';
   document.getElementById('country-tags').innerHTML =
-    countryEntries.map(([cc,c]) =>
-      `<span class="pref-tag like" style="background:rgba(37,99,235,0.1);color:#2563eb;border-color:rgba(37,99,235,0.3)">${flag(cc)} ${cc}${c>1?` <b>${c}</b>`:''}<button class="tag-del" onclick="removeTag('${esc(cc)}','countries')">×</button></span>`
-    ).join('');
+    countryEntries.map(([cc,c]) => {
+      const px = cloudSize(c, countryMax, countryEntries.length);
+      return `<span class="pref-tag country" style="font-size:${px}px"
+                title="${cc} (${c})">${flag(cc)} ${cc}<button class="tag-del" onclick="removeTag('${esc(cc)}','countries')">×</button></span>`;
+    }).join('');
 }
 
 function anxLevelColor(score) {
   return score >= 7 ? '#dc2626' : score >= 4 ? '#d97706' : '#16a34a';
 }
 
+function anxValueToOffset(v) {
+  // Legacy: track spans x=20 (value 0) to x=260 (value 10) → 240 user units across 10 points.
+  const clamped = Math.max(0, Math.min(10, v));
+  return (clamped / 10) * 240;
+}
+
+function anxValueToRotation(v) {
+  // Maps 0..10 anxiety to needle rotation -90°..+90° (left = cool, right = panic).
+  const clamped = Math.max(0, Math.min(10, v));
+  return (clamped / 10) * 180 - 90;
+}
+
 function renderAnxietyBars(personalAvg, personalCount) {
-  // Global bar
+  // Global needle
   if (globalAnxietyAvg !== null) {
-    const color = anxLevelColor(globalAnxietyAvg);
-    document.getElementById('global-bar').style.width      = (globalAnxietyAvg / 10 * 100) + '%';
-    document.getElementById('global-bar').style.background = color;
-    document.getElementById('global-val').style.color      = color;
-    document.getElementById('global-val').textContent      = globalAnxietyAvg.toFixed(1);
+    const angle = anxValueToRotation(globalAnxietyAvg);
+    document.getElementById('needle-global').style.transform = `rotate(${angle}deg)`;
+    document.getElementById('needle-global').style.color = zoneColor(globalAnxietyAvg);
+    const v = document.getElementById('value-global');
+    if (v) v.textContent = globalAnxietyAvg.toFixed(1);
   }
 
-  // Personal bar
-  const yoursRow = document.getElementById('yours-row');
-  if (!personalAvg || personalCount === 0) { yoursRow.style.display = 'none'; return; }
-  yoursRow.style.display = 'flex';
-
-  const color = anxLevelColor(personalAvg);
-  document.getElementById('yours-bar').style.width      = (personalAvg / 10 * 100) + '%';
-  document.getElementById('yours-bar').style.background = color;
-  document.getElementById('yours-val').style.color      = color;
-  document.getElementById('yours-val').textContent      = personalAvg.toFixed(1);
-
+  // Personal gauge — show entire right gauge only when we have data
+  const yoursGauge = document.getElementById('gauge-yours');
+  if (!personalAvg || personalCount === 0) {
+    yoursGauge.style.display = 'none';
+    return;
+  }
+  yoursGauge.style.display = '';
+  const angle = anxValueToRotation(personalAvg);
+  document.getElementById('needle-yours').style.transform = `rotate(${angle}deg)`;
+  const vy = document.getElementById('value-yours');
+  if (vy) vy.textContent = personalAvg.toFixed(1);
 }
 
 function renderAnxietyMeter(avg, count) {
