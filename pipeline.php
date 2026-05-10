@@ -2,6 +2,10 @@
 
 require_once __DIR__ . '/functions.php';
 
+// Survive client disconnect — fired by run.php's fire-and-forget self-call.
+ignore_user_abort(true);
+set_time_limit(0);
+
 // ── Step selection ────────────────────────────────────────────────────────────
 // Default: all steps. Pass step names as args to run only those:
 //   php pipeline.php embed

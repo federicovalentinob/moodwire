@@ -5,19 +5,31 @@ require_once __DIR__ . '/functions.php';
 $step    = $_POST['step'] ?? '';
 $message = '';
 
-// ── Trigger a step as a background CLI process ────────────────────────────────
+// ── Trigger a step via fire-and-forget HTTP self-call ───────────────────────
+// Shared hosting (IONOS) silently drops exec("... &"), so we hit the matching
+// step script over HTTP and hang up. The Apache worker keeps running thanks to
+// ignore_user_abort(true) inside each step file.
 if ($step) {
     $scripts = [
         'all'        => 'pipeline.php',
         'fetch'      => 'fetch.php',
         'normalize'  => 'normalize.php',
-        'tag'        => 'tag.php',
-        'synthesize' => 'synthesize.php',
+        'embed'      => 'embed.php',
+        'cluster'    => 'cluster.php',
+        'label'      => 'label.php',
     ];
 
     if (isset($scripts[$step])) {
-        $script = __DIR__ . '/' . $scripts[$step];
-        exec("php " . escapeshellarg($script) . " >> /tmp/moodwire_{$step}.log 2>&1 &");
+        $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $url   = $proto . '://' . $_SERVER['HTTP_HOST'] . '/' . $scripts[$step];
+        $ch    = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT_MS     => 200,   // hang up almost immediately — server keeps working
+            CURLOPT_NOSIGNAL       => 1,
+            CURLOPT_FOLLOWLOCATION => false,
+        ]);
+        curl_exec($ch);
         $message = "Step '{$step}' started in background. Refresh to see progress in logs.";
         log_action($step, 'success', 'Started via run.php');
     }
