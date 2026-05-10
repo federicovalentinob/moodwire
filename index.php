@@ -138,7 +138,19 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 .badge { font-size:inherit; font-weight:inherit; padding:0; background:none; border:none; border-radius:0; letter-spacing:inherit; text-transform:inherit; }
 .badge-cat { color:#777; }
 .badge-geo { color:#7c3aed; }
-.badge-new { color:#15803d; }
+/* NEW stands out as a green pill — uses higher-specificity selector to win
+   over the generic ".card-meta-row.primary .badge { color:inherit; }" rule. */
+.card-meta-row.primary .badge-new,
+.card-meta-row.secondary .badge-new {
+  background:#15803d; color:#fff !important;
+  padding:3px 9px; border-radius:4px;
+  font-weight:800; letter-spacing:0.6px;
+  line-height:1;
+  margin-right:10px;
+}
+/* don't put a separator dot before NEW or right after it */
+.card-meta-row .badge-new + *::before,
+.card-meta-row .badge-new::before { display:none; }
 .card-save-btn {
   position:absolute; top:50%; right:14px; transform:translateY(-50%);
   background:none; border:none; cursor:pointer; padding:6px;
@@ -219,6 +231,10 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 .card[data-anx-level="cool"]  .card-bullets li::before { background:#16a34a; }
 .card[data-anx-level="hot"]   .card-bullets li::before { background:#ea580c; }
 .card[data-anx-level="panic"] .card-bullets li::before { background:#dc2626; }
+
+.card[data-anx-level="cool"]  .badge-new { background:#16a34a; }
+.card[data-anx-level="hot"]   .badge-new { background:#ea580c; }
+.card[data-anx-level="panic"] .badge-new { background:#dc2626; }
 
 /* articles section */
 .articles-section { border-top:1px solid var(--border); }
@@ -440,7 +456,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
   <div id="saved-overlay" onclick="if(event.target===this)closeSavedOverlay()">
     <div id="saved-overlay-card">
       <div id="overlay-handle"></div>
-      <div id="overlay-hint">↙ remove &nbsp;·&nbsp; ↘ like &nbsp;·&nbsp; ↓ close</div>
+      <div id="overlay-hint">↙ remove &nbsp;·&nbsp; ↓ close</div>
       <div id="overlay-content"></div>
     </div>
   </div>
@@ -604,7 +620,7 @@ function renderCard(t, i) {
         <div class="card-meta-row primary">
           ${t.is_new   ? `<span class="badge badge-new">NEW</span>` : ''}
           ${t.category ? `<span class="badge badge-cat">${esc(t.category)}</span>` : ''}
-          ${t.geo      ? `<span class="badge badge-geo">${esc(t.geo)}</span>` : ''}
+          ${t.geo      ? `<span class="badge badge-geo">${esc(countryName(t.geo))}</span>` : ''}
         </div>
         <div class="card-meta-row secondary">
           ${anxPip}
@@ -668,6 +684,43 @@ function timeAgo(dateStr) {
   if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
   if (sec < 86400)return Math.floor(sec / 3600) + 'h ago';
   return Math.floor(sec / 86400) + 'd ago';
+}
+
+// Map ISO-3166 alpha-2 country codes to full names. Region names already in
+// topics.geo (e.g. "Western Europe", "Middle East", "International") pass
+// through unchanged.
+const COUNTRY_NAMES = {
+  US:'United States', CA:'Canada', MX:'Mexico',
+  GB:'United Kingdom', IE:'Ireland', FR:'France', DE:'Germany', IT:'Italy', ES:'Spain',
+  PT:'Portugal', NL:'Netherlands', BE:'Belgium', CH:'Switzerland', AT:'Austria',
+  LU:'Luxembourg', GR:'Greece', SE:'Sweden', NO:'Norway', DK:'Denmark', FI:'Finland',
+  IS:'Iceland', PL:'Poland', CZ:'Czech Republic', SK:'Slovakia', HU:'Hungary',
+  RO:'Romania', BG:'Bulgaria', HR:'Croatia', SI:'Slovenia', RS:'Serbia', BA:'Bosnia',
+  AL:'Albania', MK:'North Macedonia', UA:'Ukraine', BY:'Belarus', MD:'Moldova',
+  RU:'Russia', GE:'Georgia', AM:'Armenia', AZ:'Azerbaijan',
+  TR:'Turkey', IL:'Israel', PS:'Palestine', LB:'Lebanon', SY:'Syria', JO:'Jordan',
+  IR:'Iran', IQ:'Iraq', SA:'Saudi Arabia', AE:'UAE', QA:'Qatar', KW:'Kuwait',
+  OM:'Oman', BH:'Bahrain', YE:'Yemen',
+  EG:'Egypt', LY:'Libya', TN:'Tunisia', DZ:'Algeria', MA:'Morocco', SD:'Sudan',
+  ZA:'South Africa', NG:'Nigeria', KE:'Kenya', ET:'Ethiopia', GH:'Ghana',
+  SN:'Senegal', CI:'Ivory Coast', CM:'Cameroon', UG:'Uganda', TZ:'Tanzania',
+  RW:'Rwanda', SO:'Somalia', ZM:'Zambia', ZW:'Zimbabwe', MZ:'Mozambique',
+  AO:'Angola', MG:'Madagascar',
+  CN:'China', JP:'Japan', KR:'South Korea', KP:'North Korea', TW:'Taiwan',
+  HK:'Hong Kong', MN:'Mongolia',
+  IN:'India', PK:'Pakistan', BD:'Bangladesh', LK:'Sri Lanka', NP:'Nepal',
+  AF:'Afghanistan',
+  TH:'Thailand', VN:'Vietnam', ID:'Indonesia', MY:'Malaysia', PH:'Philippines',
+  SG:'Singapore', MM:'Myanmar', KH:'Cambodia', LA:'Laos',
+  AU:'Australia', NZ:'New Zealand', PG:'Papua New Guinea', FJ:'Fiji',
+  BR:'Brazil', AR:'Argentina', CL:'Chile', CO:'Colombia', PE:'Peru',
+  VE:'Venezuela', EC:'Ecuador', BO:'Bolivia', PY:'Paraguay', UY:'Uruguay',
+  CU:'Cuba', HT:'Haiti', DO:'Dominican Republic', JM:'Jamaica',
+  EU:'European Union',
+};
+function countryName(code) {
+  if (!code) return '';
+  return COUNTRY_NAMES[code.toUpperCase()] || code;
 }
 
 function esc(s) {
@@ -866,13 +919,20 @@ setupDelegatedSwipe(document.getElementById('feed'), '.card', card => dir => {
   handleSwipeAction(card, dir);
 });
 
-// Overlay delegation
+// Overlay delegation — saved cards can be removed (left swipe) or closed.
+// Right swipe is a no-op in this context (no liking from saved view).
 setupDelegatedSwipe(document.getElementById('overlay-content'), '.card', card => dir => {
   const savedId = overlayActiveId;
-  if (dir==='down') { closeSavedOverlay(); card.style.transform=''; return; }
-  if (dir==='up')   { closeSavedOverlay(); return; }
-  handleSwipeAction(card, dir, () => removeSaved(savedId));
-  setTimeout(() => removeSaved(savedId), 320);
+  if (dir === 'down' || dir === 'up' || dir === 'right') {
+    closeSavedOverlay();
+    card.style.transform = '';
+    return;
+  }
+  // Left swipe: remove the saved item without affecting preferences.
+  card.style.transition = 'transform 0.28s ease, opacity 0.28s ease';
+  card.style.transform = 'translateX(-120vw) rotate(-20deg)';
+  card.style.opacity = '0';
+  setTimeout(() => removeSaved(savedId), 300);
 }, true);
 
 function attachSwipe(card) {} // no-op — delegation handles all cards
