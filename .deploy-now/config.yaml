@@ -1,0 +1,6 @@
+# IONOS Deploy Now configuration.
+# https://docs.ionos.space/docs/configuration-options/
+
+cron-jobs:
+  - command: "php pipeline.php"
+    schedule: "0 */3 * * *"

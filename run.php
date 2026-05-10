@@ -11,12 +11,13 @@ $message = '';
 // ignore_user_abort(true) inside each step file.
 if ($step) {
     $scripts = [
-        'all'        => 'pipeline.php',
-        'fetch'      => 'fetch.php',
-        'normalize'  => 'normalize.php',
-        'embed'      => 'embed.php',
-        'cluster'    => 'cluster.php',
-        'label'      => 'label.php',
+        'all'           => 'pipeline.php',
+        'fetch'         => 'fetch.php',
+        'fetch_images'  => 'fetch_images.php',
+        'normalize'     => 'normalize.php',
+        'embed'         => 'embed.php',
+        'cluster'       => 'cluster.php',
+        'label'         => 'label.php',
     ];
 
     if (isset($scripts[$step])) {
@@ -41,13 +42,40 @@ if (isset($_GET['msg'])) $message = $_GET['msg'];
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 $stats = [
-    'feeds'       => db()->query('SELECT COUNT(*) FROM feeds WHERE active=1')->fetchColumn(),
-    'articles'    => db()->query('SELECT COUNT(*) FROM articles')->fetchColumn(),
-    'unprocessed' => count_unprocessed_articles(),
-    'topics'      => db()->query('SELECT COUNT(*) FROM topics')->fetchColumn(),
+    'feeds'           => db()->query('SELECT COUNT(*) FROM feeds WHERE active=1')->fetchColumn(),
+    'articles'        => db()->query('SELECT COUNT(*) FROM articles')->fetchColumn(),
+    'with_image'      => db()->query('SELECT COUNT(*) FROM articles WHERE image_path IS NOT NULL')->fetchColumn(),
+    'normalized'      => db()->query('SELECT COUNT(*) FROM articles WHERE clean_content IS NOT NULL AND clean_content != ""')->fetchColumn(),
+    'embedded'        => (int)db()->query('SELECT COUNT(*) FROM article_embeddings')->fetchColumn(),
+    'clusters'        => (int)(db()->query("SHOW TABLES LIKE 'topic_clusters'")->fetchColumn() ? db()->query('SELECT COUNT(DISTINCT cluster_id) FROM topic_clusters')->fetchColumn() : 0),
+    'topics'          => db()->query('SELECT COUNT(*) FROM topics')->fetchColumn(),
 ];
 
-$logs = db()->query('SELECT * FROM logs ORDER BY created_at DESC LIMIT 30')->fetchAll();
+$logs = db()->query('SELECT * FROM logs ORDER BY id DESC LIMIT 30')->fetchAll();
+
+// ── Detect the currently-active step (most recent log within 2 min) ──────────
+$action_to_step = [
+    'fetch'        => 1,
+    'fetch_images' => 2,
+    'normalize'    => 3,
+    'embed'        => 4,
+    'cluster'      => 5,
+    'label'        => 6,
+];
+$active_step = 0;
+$active_ago  = null;
+if (!empty($logs)) {
+    foreach ($logs as $l) {
+        if (isset($action_to_step[$l['action']])) {
+            $age = time() - strtotime($l['created_at']);
+            if ($age <= 120) {
+                $active_step = $action_to_step[$l['action']];
+                $active_ago  = $age;
+            }
+            break;  // only consider the very latest log
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -55,8 +83,26 @@ $logs = db()->query('SELECT * FROM logs ORDER BY created_at DESC LIMIT 30')->fet
 <meta charset="UTF-8">
 <title>Moodwire — Pipeline</title>
 <link rel="stylesheet" href="style.css">
-<?php if ($message): ?>
-<meta http-equiv="refresh" content="5;url=run.php">
+<style>
+  .pipeline-step.is-active {
+    background: linear-gradient(0deg, #fff7e6, #fff7e6), #fff;
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 2px #fde68a inset;
+    animation: stepPulse 1.4s ease-in-out infinite;
+  }
+  .pipeline-step.is-active .step-num { background:#f59e0b; color:#fff; }
+  .pipeline-step.is-active::after {
+    content:"running…"; margin-left:auto; padding:2px 10px;
+    font-size:11px; font-weight:800; letter-spacing:0.4px; text-transform:uppercase;
+    background:#f59e0b; color:#fff; border-radius:4px;
+  }
+  @keyframes stepPulse {
+    0%, 100% { box-shadow: 0 0 0 2px #fde68a inset; }
+    50%      { box-shadow: 0 0 0 2px #f59e0b inset; }
+  }
+</style>
+<?php if ($message || $active_step): ?>
+<meta http-equiv="refresh" content="<?= $active_step ? 5 : 5 ?>;url=run.php">
 <?php endif; ?>
 </head>
 <body>
@@ -75,9 +121,12 @@ $logs = db()->query('SELECT * FROM logs ORDER BY created_at DESC LIMIT 30')->fet
   <?php endif; ?>
 
   <div class="stats-bar">
-    <div class="stat"><span><?= $stats['feeds'] ?></span>Active Feeds</div>
+    <div class="stat"><span><?= $stats['feeds'] ?></span>Feeds</div>
     <div class="stat"><span><?= $stats['articles'] ?></span>Articles</div>
-    <div class="stat"><span><?= $stats['unprocessed'] ?></span>Untagged</div>
+    <div class="stat"><span><?= $stats['with_image'] ?></span>Images</div>
+    <div class="stat"><span><?= $stats['normalized'] ?></span>Normalized</div>
+    <div class="stat"><span><?= $stats['embedded'] ?></span>Embedded</div>
+    <div class="stat"><span><?= $stats['clusters'] ?></span>Clusters</div>
     <div class="stat"><span><?= $stats['topics'] ?></span>Topics</div>
   </div>
 
@@ -88,25 +137,43 @@ $logs = db()->query('SELECT * FROM logs ORDER BY created_at DESC LIMIT 30')->fet
     </form>
   </div>
 
+  <?php
+    $unembedded = max(0, (int)$stats['articles'] - (int)$stats['embedded']);
+    $no_image   = max(0, (int)$stats['articles'] - (int)$stats['with_image']);
+    $no_clean   = max(0, (int)$stats['articles'] - (int)$stats['normalized']);
+  ?>
   <div class="pipeline">
+  <?php $_n = 0; ?>
 
-    <div class="pipeline-step" style="flex-wrap:wrap;gap:12px">
+    <div class="pipeline-step<?= $active_step === ++$_n ? ' is-active' : '' ?>" style="flex-wrap:wrap;gap:12px">
       <div class="step-num">1</div>
       <div class="step-info">
         <h3>Fetch</h3>
-        <p>Pull latest articles from all active RSS feeds</p>
+        <p>Pull latest articles from all active RSS feeds, purge anything &gt; 24h.</p>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
         <button id="fetch-btn" class="btn" onclick="runFetch(event)">Run</button>
-        <div id="fetch-result" style="display:none;font-size:12px;font-weight:600;display:none;gap:10px;white-space:nowrap"></div>
+        <div id="fetch-result" style="display:none;font-size:12px;font-weight:600;gap:10px;white-space:nowrap"></div>
       </div>
     </div>
 
-    <div class="pipeline-step">
+    <div class="pipeline-step<?= $active_step === ++$_n ? ' is-active' : '' ?>">
       <div class="step-num">2</div>
       <div class="step-info">
+        <h3>Images</h3>
+        <p>Fetch OG cover images (<?= $stats['with_image'] ?>/<?= $stats['articles'] ?> articles have one).</p>
+      </div>
+      <form method="POST">
+        <input type="hidden" name="step" value="fetch_images">
+        <button class="btn" disabled title="Run as part of Full Pipeline">Run</button>
+      </form>
+    </div>
+
+    <div class="pipeline-step<?= $active_step === ++$_n ? ' is-active' : '' ?>">
+      <div class="step-num">3</div>
+      <div class="step-info">
         <h3>Normalize</h3>
-        <p>Clean and standardize article content</p>
+        <p>Strip HTML and clean article body text (<?= $stats['normalized'] ?>/<?= $stats['articles'] ?> normalized).</p>
       </div>
       <form method="POST">
         <input type="hidden" name="step" value="normalize">
@@ -114,28 +181,40 @@ $logs = db()->query('SELECT * FROM logs ORDER BY created_at DESC LIMIT 30')->fet
       </form>
     </div>
 
-    <div class="pipeline-step">
-      <div class="step-num">3</div>
+    <div class="pipeline-step<?= $active_step === ++$_n ? ' is-active' : '' ?>">
+      <div class="step-num">4</div>
       <div class="step-info">
-        <h3>Tag</h3>
-        <p>Perplexity assigns tags + anxiety to each article (<?= $stats['unprocessed'] ?> untagged)</p>
+        <h3>Embed</h3>
+        <p>OpenAI <code>text-embedding-3-small</code> @ 384 dims — <?= $stats['embedded'] ?>/<?= $stats['articles'] ?> embedded (<?= $unembedded ?> pending).</p>
       </div>
       <form method="POST">
-        <input type="hidden" name="step" value="tag">
-        <button class="btn" <?= $stats['unprocessed'] == 0 ? 'disabled' : '' ?>>
-          <?= $stats['unprocessed'] > 0 ? 'Run' : 'Done ✓' ?>
+        <input type="hidden" name="step" value="embed">
+        <button class="btn" <?= $unembedded == 0 ? 'disabled' : '' ?>>
+          <?= $unembedded > 0 ? 'Run' : 'Up to date ✓' ?>
         </button>
       </form>
     </div>
 
-    <div class="pipeline-step">
-      <div class="step-num">4</div>
+    <div class="pipeline-step<?= $active_step === ++$_n ? ' is-active' : '' ?>">
+      <div class="step-num">5</div>
       <div class="step-info">
-        <h3>Synthesize</h3>
-        <p>Cluster articles into up to 25 topics + generate bullet points</p>
+        <h3>Cluster</h3>
+        <p>Local threshold k-NN clustering on the embedding space (cos ≥ 0.70). <?= $stats['clusters'] ?> clusters from last run.</p>
       </div>
       <form method="POST">
-        <input type="hidden" name="step" value="synthesize">
+        <input type="hidden" name="step" value="cluster">
+        <button class="btn">Run</button>
+      </form>
+    </div>
+
+    <div class="pipeline-step<?= $active_step === ++$_n ? ' is-active' : '' ?>">
+      <div class="step-num">6</div>
+      <div class="step-info">
+        <h3>Label</h3>
+        <p>One <code>gpt-4o-mini</code> call per cluster — title, bullets, anxiety, country (<?= $stats['topics'] ?> topics in DB).</p>
+      </div>
+      <form method="POST">
+        <input type="hidden" name="step" value="label">
         <button class="btn">Run</button>
       </form>
     </div>
