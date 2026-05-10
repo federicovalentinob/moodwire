@@ -2,6 +2,9 @@
 
 require_once __DIR__ . '/functions.php';
 
+ignore_user_abort(true);
+set_time_limit(0);
+
 $schema = [
     'type' => 'object',
     'additionalProperties' => false,
@@ -33,6 +36,9 @@ if (empty($clusters)) {
 }
 
 cli_log("  Labeling " . count($clusters) . " clusters...");
+
+// Clear NEW flag on all existing topics so only this run's topics show as NEW.
+db()->exec('UPDATE topics SET is_new = 0');
 
 $saved = 0; $failed = 0;
 foreach ($clusters as $c) {
@@ -67,12 +73,13 @@ foreach ($clusters as $c) {
         $obj['category'] ?? null
     );
 
-    // Propagate country tag to articles for the geo badge in the UI
+    // Propagate country tag to articles, then derive topic.geo from the cluster's article_tags
     $cc = strtoupper(trim((string)($obj['country'] ?? '')));
     if (preg_match('/^[A-Z]{2}$/', $cc) && $cc !== 'XX') {
         $tagInsert = db()->prepare("INSERT IGNORE INTO article_tags (article_id, tag) VALUES (?, ?)");
         foreach ($ids as $aid) $tagInsert->execute([$aid, "country:$cc"]);
     }
+    update_topic_geo($topic_id);
 
     cli_log("    ✓ [$topic_id sz=$sz] " . substr($obj['title'], 0, 90));
     $saved++;

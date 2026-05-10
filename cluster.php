@@ -2,6 +2,11 @@
 
 require_once __DIR__ . '/functions.php';
 
+// Survive client disconnect / shared-hosting socket timeouts during the
+// pairwise-similarity scan (multi-minute on 3k+ articles).
+ignore_user_abort(true);
+set_time_limit(0);
+
 $threshold = defined('CLUSTER_THRESHOLD') ? (float)CLUSTER_THRESHOLD : 0.70;
 $min_size  = defined('CLUSTER_MIN_SIZE')  ? (int)CLUSTER_MIN_SIZE  : 3;
 
@@ -42,6 +47,7 @@ foreach ($rows as $r) {
 }
 $D = count($vecs[0]);
 
+log_action('cluster', 'success', "scan starting: N=$N, D=$D, threshold=$threshold");
 cli_log("  Pairwise threshold scan @ cosine >= $threshold (D=$D, N=$N)...");
 $t0 = microtime(true);
 
@@ -57,6 +63,7 @@ $union = function ($a, $b) use (&$parent, $find) {
 };
 
 $edges = 0;
+$last_log_i = -1;
 for ($i = 0; $i < $N; $i++) {
     $vi = $vecs[$i];
     for ($j = $i + 1; $j < $N; $j++) {
@@ -65,8 +72,14 @@ for ($i = 0; $i < $N; $i++) {
         for ($d = 0; $d < $D; $d++) $s += $vi[$d] * $vj[$d];
         if ($s >= $threshold) { $union($i, $j); $edges++; }
     }
+    // Heartbeat every 200 outer iterations so we can see liveness in the logs table
+    if ($i - $last_log_i >= 200) {
+        log_action('cluster', 'success', "scan progress: i=$i / $N (" . round(microtime(true) - $t0, 1) . "s, $edges edges)");
+        $last_log_i = $i;
+    }
 }
 cli_log("  Pairwise scan in " . round(microtime(true) - $t0, 1) . "s ($edges edges).");
+log_action('cluster', 'success', "scan complete: $edges edges, " . round(microtime(true) - $t0, 1) . "s");
 
 // Group by component
 $groups = [];

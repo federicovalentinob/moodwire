@@ -580,10 +580,14 @@ function anxiety_label(float $score): string {
 
 function call_openai_embeddings(array $inputs): array {
     if (empty($inputs)) return [];
-    $payload = json_encode([
+    $body = [
         'model' => defined('EMBEDDING_MODEL') ? EMBEDDING_MODEL : 'text-embedding-3-small',
         'input' => $inputs,
-    ]);
+    ];
+    if (defined('EMBEDDING_DIMS') && (int)EMBEDDING_DIMS > 0) {
+        $body['dimensions'] = (int)EMBEDDING_DIMS;
+    }
+    $payload = json_encode($body);
     $ch = curl_init('https://api.openai.com/v1/embeddings');
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,

@@ -21,16 +21,25 @@ if ($step) {
     ];
 
     if (isset($scripts[$step])) {
-        $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $url   = $proto . '://' . $_SERVER['HTTP_HOST'] . '/' . $scripts[$step];
-        $ch    = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT_MS     => 200,   // hang up almost immediately — server keeps working
-            CURLOPT_NOSIGNAL       => 1,
-            CURLOPT_FOLLOWLOCATION => false,
-        ]);
-        curl_exec($ch);
+        $script_path = __DIR__ . '/' . $scripts[$step];
+        if (PHP_SAPI === 'cli-server') {
+            // Local dev: php -S is single-threaded, so an HTTP self-call would
+            // deadlock. Spawn a real CLI php process instead and detach.
+            exec("php " . escapeshellarg($script_path) . " >> /tmp/moodwire_run.log 2>&1 &");
+        } else {
+            // Production (Apache): fire-and-forget HTTP self-call. The Apache
+            // worker keeps running thanks to ignore_user_abort() in the step file.
+            $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $url   = $proto . '://' . $_SERVER['HTTP_HOST'] . '/' . $scripts[$step];
+            $ch    = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT_MS     => 200,
+                CURLOPT_NOSIGNAL       => 1,
+                CURLOPT_FOLLOWLOCATION => false,
+            ]);
+            curl_exec($ch);
+        }
         $message = "Step '{$step}' started in background. Refresh to see progress in logs.";
         log_action($step, 'success', 'Started via run.php');
     }

@@ -2,6 +2,9 @@
 
 require_once __DIR__ . '/functions.php';
 
+ignore_user_abort(true);
+set_time_limit(0);
+
 const EMBED_BATCH_SIZE = 100;
 
 db()->exec("CREATE TABLE IF NOT EXISTS article_embeddings (

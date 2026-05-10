@@ -59,24 +59,21 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 .anx-chip.active.low    { background:var(--low);  border-color:var(--low);  }
 .anx-chip.active.mid    { background:var(--mid);  border-color:var(--mid);  }
 .anx-chip.active.high   { background:var(--high); border-color:var(--high); }
-/* ── Anxiometer — twin semicircle gauges ──────────────────────────────────── */
-#anxiety-widget-title { font-size:13px; font-weight:900; letter-spacing:0.3px; color:#0d0d0d; }
+/* ── Anxiometer — single horizontal bar, 5 segments, two needles ──────────── */
 #gauge-wrap { display:flex; justify-content:center; margin:0 -16px 2px; }
-#gauge-svg { width:100%; max-width:none; height:auto; overflow:visible; }
-.gauge-zone { cursor:pointer; fill:none; stroke-width:14; stroke-linecap:butt; transition:opacity 0.25s; }
+#gauge-svg  { width:100%; max-width:none; height:auto; overflow:visible; }
+.gauge-zone { cursor:pointer; transition:opacity 0.25s; }
 .gauge-zone.dimmed { opacity:0.28; }
-.gauge-chassis { fill:none; stroke:#eaeaea; stroke-width:14; stroke-linejoin:round; stroke-linecap:butt; pointer-events:none; }
-.gauge-inner-shadow { fill:none; stroke:rgba(0,0,0,0.18); stroke-width:1.5; stroke-linecap:butt; pointer-events:none; }
-.gauge-title { font-size:10px; font-weight:800; fill:#0d0d0d; letter-spacing:1px; font-family:inherit; }
-.gauge-axis-label { font-size:7px; font-weight:700; fill:#aaa; letter-spacing:0.5px; font-family:inherit; }
-.gauge-value { font-size:18px; font-weight:900; fill:#0d0d0d; font-family:inherit; }
+.gauge-frame   { fill:none; stroke:#cdcdcd; stroke-width:5; pointer-events:none; }
+.gauge-divider { stroke:#fff; stroke-width:1; opacity:0.50; pointer-events:none; }
 
-/* needles — rotate around their gauge center */
+/* needles — translate horizontally based on anxiety value */
 .needle-grp { transition:transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
-#needle-global { transform-box:view-box; transform-origin:70px 88px; color:#0d0d0d; }
-#needle-yours  { transform-box:view-box; transform-origin:210px 88px; color:#3b82f6; }
-.needle-line  { stroke:currentColor; stroke-width:2.5; stroke-linecap:round; fill:none; }
-.needle-hub   { fill:currentColor; }
+.needle-arrow.global { fill:#0d0d0d; }
+.needle-arrow.yours  { fill:#3b82f6; }
+.pin-label { font-size:9.5px; font-weight:800; font-family:inherit; letter-spacing:0.4px; text-transform:uppercase; }
+.pin-label.global { fill:#0d0d0d; }
+.pin-label.yours  { fill:#3b82f6; }
 
 /* ── Category chips ─────────────────────────────────────────────────────── */
 #filters {
@@ -103,7 +100,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
   padding:0; margin:0;
   position:relative; cursor:pointer; user-select:none; touch-action:pan-y;
 }
-.card + .card { border-top:1px solid #f0f0f0; margin-top:32px; padding-top:32px; }
+.card + .card { border-top:1px solid #f0f0f0; margin-top:18px; padding-top:18px; }
 .card.slide-in { animation:slideIn 0.35s cubic-bezier(0.22,1,0.36,1) both; }
 @keyframes slideIn {
   from { opacity:0; transform:translateY(18px); }
@@ -118,11 +115,11 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 /* meta — two stacked rows on a soft mood-tinted underlay */
 .card-meta {
   position:relative;
-  display:flex; flex-direction:column; gap:10px; margin-bottom:18px;
+  display:flex; flex-direction:column; gap:7px; margin-bottom:10px;
   text-transform:uppercase; line-height:1;
-  padding:16px 56px 16px 18px; /* right-side room for the absolute save button */
+  padding:11px 50px 11px 14px; /* right-side room for the absolute save button */
   background:#f5f5f5;
-  border-radius:8px;
+  border-radius:6px;
 }
 .card-meta-row { display:flex; align-items:center; flex-wrap:wrap; gap:0; }
 .card-meta-row > * { display:inline-flex; align-items:center; line-height:1; }
@@ -131,11 +128,11 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
   background:currentColor; opacity:0.4; margin:0 10px; vertical-align:middle;
 }
 .card-meta-row.primary {
-  font-size:15px; font-weight:800; letter-spacing:0.2px; color:#111;
+  font-size:13px; font-weight:800; letter-spacing:0.2px; color:#111;
 }
 .card-meta-row.primary .badge { color:inherit; }
 .card-meta-row.secondary {
-  font-size:11px; font-weight:700; letter-spacing:0.4px;
+  font-size:10px; font-weight:700; letter-spacing:0.4px;
 }
 .card-time { color:inherit; }
 .badge { font-size:inherit; font-weight:inherit; padding:0; background:none; border:none; border-radius:0; letter-spacing:inherit; text-transform:inherit; }
@@ -155,8 +152,9 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 /* title + byline */
 .card-body { padding:0; position:relative; }
 .card-title {
-  font-size:23px; font-weight:800; line-height:1.28; letter-spacing:-0.5px;
-  color:#111; margin-bottom:14px;
+  font-size:18px; font-weight:800; line-height:1.28; letter-spacing:-0.4px;
+  color:#111; margin-bottom:10px;
+  padding-left:14px; /* align with first item (NEW / category) inside .card-meta */
 }
 .card-byline {
   font-size:13px; color:#666; margin-bottom:12px;
@@ -164,7 +162,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 }
 
 /* hero image — now BELOW the title */
-.card-hero { width:100%; max-height:260px; overflow:hidden; position:relative; background:#ebebeb; border-radius:8px; margin:2px 0 0; }
+.card-hero { width:100%; max-height:160px; overflow:hidden; position:relative; background:#ebebeb; border-radius:6px; margin:2px 0 0; }
 .card-hero img { width:100%; height:100%; object-fit:cover; display:block; }
 /* hero overlay badge (kept for legacy; not currently rendered) */
 .card-hero-badge {
@@ -192,14 +190,14 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 .card-meta .card-article-count { font-size:inherit; font-weight:inherit; color:inherit; letter-spacing:inherit; }
 
 /* expanded bullets */
-.card-bullets { padding:4px 4px 4px; margin-top:18px; }
+.card-bullets { padding:2px 4px 2px 14px; margin-top:10px; }
 .card-bullets li {
-  font-size:16px; color:#222; line-height:1.65; font-weight:400;
-  padding:7px 0 7px 22px; list-style:none; position:relative;
+  font-size:14px; color:#222; line-height:1.55; font-weight:400;
+  padding:4px 0 4px 18px; list-style:none; position:relative;
 }
 .card-bullets li::before {
-  content:""; position:absolute; left:6px; top:15px;
-  width:5px; height:5px; border-radius:50%; background:#bbb;
+  content:""; position:absolute; left:5px; top:12px;
+  width:4px; height:4px; border-radius:50%; background:#bbb;
 }
 
 /* tap hint */
@@ -209,7 +207,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
   text-align:center; letter-spacing:0.4px;
 }
 
-/* ── Anxiety mood styling — secondary row text + meta-block underlay ──────── */
+/* ── Anxiety mood styling — secondary row text + meta underlay + bullet dots ─ */
 .card[data-anx-level="cool"]  .card-meta-row.secondary { color:#16a34a; }
 .card[data-anx-level="hot"]   .card-meta-row.secondary { color:#ea580c; }
 .card[data-anx-level="panic"] .card-meta-row.secondary { color:#dc2626; }
@@ -217,6 +215,10 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 .card[data-anx-level="cool"]  .card-meta { background:#f0fdf4; }
 .card[data-anx-level="hot"]   .card-meta { background:#fff7ed; }
 .card[data-anx-level="panic"] .card-meta { background:#fef2f2; }
+
+.card[data-anx-level="cool"]  .card-bullets li::before { background:#16a34a; }
+.card[data-anx-level="hot"]   .card-bullets li::before { background:#ea580c; }
+.card[data-anx-level="panic"] .card-bullets li::before { background:#dc2626; }
 
 /* articles section */
 .articles-section { border-top:1px solid var(--border); }
@@ -227,7 +229,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 }
 .article-row {
   display:flex; align-items:center; gap:10px; padding:10px 14px;
-  text-decoration:none; color:var(--text); border-top:1px solid var(--border);
+  text-decoration:none; color:var(--text);
   transition:background 0.1s; -webkit-tap-highlight-color:transparent;
 }
 .article-row:active { background:rgba(0,0,0,0.025); }
@@ -236,7 +238,6 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 .article-info { flex:1; min-width:0; }
 .article-title { font-size:13px; line-height:1.4; font-weight:500; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .article-src { font-size:11px; color:var(--muted); margin-top:2px; }
-.article-anx { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
 
 /* ── Preferences word cloud ──────────────────────────────────────────────── */
 #prefs {
@@ -364,42 +365,45 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
       <button id="toggle-prefs-btn" onclick="togglePrefs()" style="display:none">Preferences</button>
     </div>
 
-    <!-- Anxiometer (cartoonish gauge — zones double as filter buttons) -->
+    <!-- Anxiometer — single horizontal bar, 5 colored segments, 3 filter buckets -->
     <div id="anxiety-widget">
       <div id="gauge-wrap">
-        <svg viewBox="0 20 280 110" id="gauge-svg" aria-label="Anxiometers">
-          <!-- LEFT gauge: Current feed (5 colored segments, 3 filter buckets) -->
-          <g id="gauge-global">
-            <!-- 5 colored segments -->
-            <path class="gauge-zone" data-filter="low"    d="M 27 88        A 43 43 0 0 1 35.21 62.72"  stroke="#15803d" />
-            <path class="gauge-zone" data-filter="low"    d="M 35.21 62.72  A 43 43 0 0 1 56.71 47.11"  stroke="#65a30d" />
-            <path class="gauge-zone" data-filter="medium" d="M 56.71 47.11  A 43 43 0 0 1 83.29 47.11"  stroke="#eab308" />
-            <path class="gauge-zone" data-filter="high"   d="M 83.29 47.11  A 43 43 0 0 1 104.79 62.72" stroke="#ea580c" />
-            <path class="gauge-zone" data-filter="high"   d="M 104.79 62.72 A 43 43 0 0 1 113 88"       stroke="#dc2626" />
-            <!-- inner-shadow line at the outer edge of the colored band -->
-            <path class="gauge-inner-shadow" d="M 20.5 88 A 49.5 49.5 0 0 1 119.5 88" />
-            <g id="needle-global" class="needle-grp">
-              <line class="needle-line" x1="70" y1="88" x2="70" y2="50" />
-              <circle class="needle-hub" cx="70" cy="88" r="6" />
-            </g>
-            <text x="70"  y="80"  text-anchor="middle" class="gauge-value" id="value-global">—</text>
-            <text x="70"  y="108" text-anchor="middle" class="gauge-title">CURRENT FEED</text>
+        <svg viewBox="0 0 280 70" id="gauge-svg" aria-label="Anxiometer">
+          <defs>
+            <linearGradient id="bar-inner-shadow" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stop-color="rgba(0,0,0,0.35)" />
+              <stop offset="100%" stop-color="rgba(0,0,0,0)" />
+            </linearGradient>
+          </defs>
+
+          <!-- 5 squared color segments (track from x=20 to x=260, 48px each) -->
+          <g>
+            <rect class="gauge-zone" data-filter="low"    x="20"  y="22" width="48" height="22" fill="#15803d" />
+            <rect class="gauge-zone" data-filter="low"    x="68"  y="22" width="48" height="22" fill="#65a30d" />
+            <rect class="gauge-zone" data-filter="medium" x="116" y="22" width="48" height="22" fill="#eab308" />
+            <rect class="gauge-zone" data-filter="high"   x="164" y="22" width="48" height="22" fill="#ea580c" />
+            <rect class="gauge-zone" data-filter="high"   x="212" y="22" width="48" height="22" fill="#dc2626" />
+          </g>
+          <!-- inner shadow: top-edge dark fade simulating the bar being recessed -->
+          <rect x="20" y="22" width="240" height="6" fill="url(#bar-inner-shadow)" pointer-events="none" />
+          <!-- 5px gray frame surrounding the bar -->
+          <rect class="gauge-frame" x="17.5" y="19.5" width="245" height="27" />
+          <!-- segment dividers -->
+          <line class="gauge-divider" x1="68"  y1="22" x2="68"  y2="44" />
+          <line class="gauge-divider" x1="116" y1="22" x2="116" y2="44" />
+          <line class="gauge-divider" x1="164" y1="22" x2="164" y2="44" />
+          <line class="gauge-divider" x1="212" y1="22" x2="212" y2="44" />
+
+          <!-- "Feed anxiety level" needle BELOW the bar, points up -->
+          <g id="needle-global" class="needle-grp">
+            <polygon points="14,52 26,52 20,46" class="needle-arrow global" />
+            <text x="20" y="64" text-anchor="middle" class="pin-label global">Feed anxiety level</text>
           </g>
 
-          <!-- RIGHT gauge: You (hidden until personal data exists) -->
-          <g id="gauge-yours" style="display:none">
-<path class="gauge-zone" data-filter="low"    d="M 167 88        A 43 43 0 0 1 175.21 62.72" stroke="#15803d" />
-            <path class="gauge-zone" data-filter="low"    d="M 175.21 62.72  A 43 43 0 0 1 196.71 47.11" stroke="#65a30d" />
-            <path class="gauge-zone" data-filter="medium" d="M 196.71 47.11  A 43 43 0 0 1 223.29 47.11" stroke="#eab308" />
-            <path class="gauge-zone" data-filter="high"   d="M 223.29 47.11  A 43 43 0 0 1 244.79 62.72" stroke="#ea580c" />
-            <path class="gauge-zone" data-filter="high"   d="M 244.79 62.72  A 43 43 0 0 1 253 88"       stroke="#dc2626" />
-            <path class="gauge-inner-shadow" d="M 160.5 88 A 49.5 49.5 0 0 1 259.5 88" />
-            <g id="needle-yours" class="needle-grp">
-              <line class="needle-line" x1="210" y1="88" x2="210" y2="50" />
-              <circle class="needle-hub" cx="210" cy="88" r="6" />
-            </g>
-            <text x="210" y="80"  text-anchor="middle" class="gauge-value" id="value-yours">—</text>
-            <text x="210" y="108" text-anchor="middle" class="gauge-title">YOU</text>
+          <!-- "You" needle ABOVE the bar, points down — last so it paints over the frame -->
+          <g id="needle-yours" class="needle-grp" style="display:none">
+            <text x="20" y="10" text-anchor="middle" class="pin-label yours">You</text>
+            <polygon points="14,14 26,14 20,20" class="needle-arrow yours" />
           </g>
         </svg>
       </div>
@@ -490,11 +494,8 @@ function zoneColor(v) {
 
 function moveGlobalNeedle() {
   if (globalAnxietyAvg == null) return;
-  const angle = anxValueToRotation(globalAnxietyAvg);
-  document.getElementById('needle-global').style.transform = `rotate(${angle}deg)`;
-  document.getElementById('needle-global').style.color = zoneColor(globalAnxietyAvg);
-  const v = document.getElementById('value-global');
-  if (v) v.textContent = globalAnxietyAvg.toFixed(1);
+  const dx = anxValueToOffset(globalAnxietyAvg);
+  document.getElementById('needle-global').style.transform = `translateX(${dx}px)`;
 }
 
 // ── Load initial stack ────────────────────────────────────────────────────
@@ -583,7 +584,6 @@ function renderCard(t, i) {
         <div class="article-title">${esc(a.title)}</div>
         <div class="article-src">${esc(a.feed_name)}${a.time_ago ? ' · ' + esc(a.time_ago) : ''}</div>
       </div>
-      <div class="article-anx" style="background:${anxColor(anx)}"></div>
     </a>`;
   }).join('');
 
@@ -957,24 +957,19 @@ function anxValueToRotation(v) {
 function renderAnxietyBars(personalAvg, personalCount) {
   // Global needle
   if (globalAnxietyAvg !== null) {
-    const angle = anxValueToRotation(globalAnxietyAvg);
-    document.getElementById('needle-global').style.transform = `rotate(${angle}deg)`;
-    document.getElementById('needle-global').style.color = zoneColor(globalAnxietyAvg);
-    const v = document.getElementById('value-global');
-    if (v) v.textContent = globalAnxietyAvg.toFixed(1);
+    const dx = anxValueToOffset(globalAnxietyAvg);
+    document.getElementById('needle-global').style.transform = `translateX(${dx}px)`;
   }
 
-  // Personal gauge — show entire right gauge only when we have data
-  const yoursGauge = document.getElementById('gauge-yours');
+  // Personal needle — only show when we have data
+  const yoursNeedle = document.getElementById('needle-yours');
   if (!personalAvg || personalCount === 0) {
-    yoursGauge.style.display = 'none';
+    yoursNeedle.style.display = 'none';
     return;
   }
-  yoursGauge.style.display = '';
-  const angle = anxValueToRotation(personalAvg);
-  document.getElementById('needle-yours').style.transform = `rotate(${angle}deg)`;
-  const vy = document.getElementById('value-yours');
-  if (vy) vy.textContent = personalAvg.toFixed(1);
+  yoursNeedle.style.display = '';
+  const dx = anxValueToOffset(personalAvg);
+  yoursNeedle.style.transform = `translateX(${dx}px)`;
 }
 
 function renderAnxietyMeter(avg, count) {
