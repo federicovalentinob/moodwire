@@ -88,7 +88,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
   cursor:pointer; white-space:nowrap; transition:all 0.15s;
   height:28px; display:inline-flex; align-items:center; gap:3px;
 }
-.chip.active { background:#0d0d0d; border-color:#0d0d0d; color:#fff; }
+.chip.active { background:#0d0d0d !important; border-color:#0d0d0d !important; color:#fff !important; }
 
 /* ── Feed ───────────────────────────────────────────────────────────────── */
 #feed { flex:1; overflow-y:auto; padding:10px 12px 12px; touch-action:pan-y; -webkit-overflow-scrolling:touch; }
@@ -298,17 +298,14 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 }
 .pref-tags::-webkit-scrollbar { display:none; }
 
-/* a single word in the cloud — all rendered in black */
+/* a single word in the cloud — pill with bg-tint set inline per count */
 .pref-tag {
   display:inline-flex; align-items:baseline; gap:3px;
-  padding:0; border:none; background:none;
+  padding:4px 12px; border:none; border-radius:999px;
   font-weight:800; letter-spacing:-0.2px;
-  color:#0d0d0d;
   cursor:default; flex-shrink:0;
-  transition:opacity 0.15s;
+  transition:opacity 0.15s, background 0.15s;
 }
-.pref-tag.negative { color:#0d0d0d; opacity:0.45; }
-.pref-tag.country  { color:#0d0d0d; }
 .pref-tag .tag-del {
   background:none; border:none; cursor:pointer;
   font-size:0.6em; line-height:1; padding:0 0 0 2px;
@@ -474,8 +471,6 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
   <!-- Bottom nav -->
   <nav id="bottom-nav">
     <a href="index.php" class="nav-item active"><span class="nav-icon">📰</span>Feed</a>
-    <a href="map.php"   class="nav-item"><span class="nav-icon">🗺</span>Map</a>
-    <a href="mobile.php"class="nav-item"><span class="nav-icon">🌍</span>Globe</a>
     <a href="run.php"   class="nav-item"><span class="nav-icon">⚙️</span>Admin</a>
   </nav>
 
@@ -534,6 +529,7 @@ async function loadTopics() {
   }
   document.getElementById('feed').innerHTML = topics.map((t, i) => renderCard(t, i)).join('');
   attachSentinel();
+  recomputeFeedAnxiety();
   isLoading = false;
 }
 
@@ -555,6 +551,7 @@ async function loadMore() {
       feed.appendChild(tmp.firstElementChild);
     });
     attachSentinel();
+    recomputeFeedAnxiety();
   }
   isFetching = false;
 }
@@ -742,19 +739,59 @@ function esc(s) {
 let globalAnxietyAvg = null;
 
 // ── Load category chips + global anxiety ─────────────────────────────────
+// Cached so we can re-render chips when prefs change without re-fetching stats.
+let _categoryStats = [];
+let _liked         = {};   // current liked-tag counts from the API (incl. category names)
+let hasUserPrefs   = false;
+
 async function loadStats() {
   const res  = await fetch('api.php?action=stats');
   const data = await res.json();
-  const wrap = document.getElementById('cat-chips');
-  wrap.innerHTML = data.categories.map(c =>
-    `<button class="chip" data-filter="${esc(c.category)}" data-group="category"
-      onclick="setCategory(this)">${esc(c.category)} <span style="opacity:.5;font-size:10px">${c.c}</span></button>`
-  ).join('');
+  _categoryStats = data.categories || [];
+  renderCategoryChips();
   globalAnxietyAvg = parseFloat(data.global_anxiety_avg) || null;
   renderAnxietyBars(null, null);
   if (data.last_updated) {
     document.getElementById('last-updated').textContent = 'Updated ' + timeAgo(data.last_updated);
   }
+}
+
+function renderCategoryChips() {
+  const wrap = document.getElementById('cat-chips');
+  if (!wrap) return;
+
+  // Attach the user's like-count for this category (api stores category names
+  // lower-cased inside the `liked` map alongside regular tags).
+  const enriched = _categoryStats.map(c => ({
+    ...c,
+    likeCount: Math.max(0, _liked[String(c.category).toLowerCase()] || 0),
+  }));
+
+  // Sort by like-count desc; topic count breaks ties.
+  enriched.sort((a, b) => (b.likeCount - a.likeCount) || ((+b.c) - (+a.c)));
+
+  const maxLike = enriched.reduce((m, c) => Math.max(m, c.likeCount), 0);
+
+  wrap.innerHTML = enriched.map(c => {
+    const isActive = activeCategory && c.category === activeCategory;
+    let style = '';
+    // Active chip uses its dark active styling — skip the like-based tint
+    // entirely so liking a topic doesn't restyle the currently-selected chip.
+    if (!isActive) {
+      if (maxLike > 0) {
+        const intensity = Math.min(1, c.likeCount / maxLike);
+        const alpha     = 0.08 + intensity * 0.55;       // 0.08 → 0.63
+        const bg        = `rgba(37, 99, 235, ${alpha.toFixed(2)})`;
+        const fg        = intensity > 0.45 ? '#fff' : '#0d1a4d';
+        style = `background:${bg};color:${fg};border-color:transparent`;
+      } else {
+        style = 'background:#fff;color:#111';
+      }
+    }
+    return `<button class="chip${isActive ? ' active' : ''}" data-filter="${esc(c.category)}" data-group="category"
+              style="${style}"
+              onclick="setCategory(this)">${esc(c.category)} <span style="opacity:.55;font-size:10px">${c.c}</span></button>`;
+  }).join('');
 }
 
 // ── Anxiety filter chips ──────────────────────────────────────────────────
@@ -843,6 +880,21 @@ function removeSaved(id) {
   closeSavedOverlay();
 }
 
+// Recompute the feed-anxiety needle from the cards currently in the stack.
+// Called whenever the visible feed changes — swipe, save, add new cards.
+function recomputeFeedAnxiety() {
+  const cards = document.querySelectorAll('#feed .card');
+  if (!cards.length) return;
+  let sum = 0, count = 0;
+  cards.forEach(c => {
+    const a = parseFloat(c.dataset.anxiety);
+    if (!isNaN(a)) { sum += a; count++; }
+  });
+  if (!count) return;
+  globalAnxietyAvg = sum / count;
+  moveGlobalNeedle();
+}
+
 // ── Shared swipe action ───────────────────────────────────────────────────
 async function handleSwipeAction(card, dir, onComplete) {
   const id = parseInt(card.dataset.id);
@@ -851,13 +903,13 @@ async function handleSwipeAction(card, dir, onComplete) {
     card.style.transition = 'transform 0.28s ease, opacity 0.28s ease';
     card.style.transform = 'translateY(-110%) scale(0.85)';
     card.style.opacity = '0';
-    setTimeout(() => { addToSaved(id, card, savedHtml); card.remove(); if (onComplete) onComplete(); }, 280);
+    setTimeout(() => { addToSaved(id, card, savedHtml); card.remove(); recomputeFeedAnxiety(); if (onComplete) onComplete(); }, 280);
     return;
   }
   card.style.transition = 'transform 0.28s ease, opacity 0.28s ease';
   card.style.transform = `translateX(${dir==='right'?'120vw':'-120vw'}) rotate(${dir==='right'?20:-20}deg)`;
   card.style.opacity = '0';
-  setTimeout(() => { card.remove(); if (onComplete) onComplete(); }, 300);
+  setTimeout(() => { card.remove(); recomputeFeedAnxiety(); if (onComplete) onComplete(); }, 300);
   if (dir === 'right' || dir === 'left') {
     const res  = await fetch('api.php?action=swipe', {method:'POST',headers:{'Content-Type':'application/json'},
       body: JSON.stringify({topic_id:id, direction:dir, anxiety: parseFloat(card.dataset.anxiety ?? 5)})});
@@ -971,6 +1023,12 @@ function renderPreferences(liked, countries) {
   const likedEntries   = Object.entries(liked ?? {}).sort((a,b) => b[1]-a[1]).slice(0,15);
   const countryEntries = Object.entries(countries ?? {}).filter(([,c]) => c > 0).sort((a,b) => b[1]-a[1]).slice(0,15);
   const hasPrefs = likedEntries.length > 0 || countryEntries.length > 0;
+
+  // Cache the like map so the category-chip strip can color + reorder itself
+  // based on each category's like-count (api stores categories in `liked`).
+  _liked = liked || {};
+  hasUserPrefs = hasPrefs;
+  renderCategoryChips();
   document.getElementById('toggle-prefs-btn').style.display = hasPrefs ? '' : 'none';
   if (!hasPrefs) {
     prefsOpen = false;
@@ -992,11 +1050,29 @@ function renderPreferences(liked, countries) {
   const likedMax = likedEntries.length ? Math.max(...likedEntries.map(([,c]) => Math.abs(c))) : 0;
   const countryMax = countryEntries.length ? Math.max(...countryEntries.map(([,c]) => c)) : 0;
 
+  // background tint scales with the tag's value relative to the row's max.
+  // Same blue as the category chips; negatives keep a red tint to stay readable
+  // as "downweighted" preferences.
+  const tintBg = (c, maxAbs, negative=false) => {
+    const intensity = maxAbs > 0 ? Math.min(1, Math.abs(c) / maxAbs) : 0;
+    const alpha     = 0.08 + intensity * 0.55;          // 0.08 → 0.63
+    return negative
+      ? `rgba(220, 38, 38, ${alpha.toFixed(2)})`        // red for negatives
+      : `rgba(37, 99, 235, ${alpha.toFixed(2)})`;       // blue for likes/countries
+  };
+  const tintFg = (c, maxAbs) => {
+    const intensity = maxAbs > 0 ? Math.min(1, Math.abs(c) / maxAbs) : 0;
+    return intensity > 0.45 ? '#fff' : '#0d1a4d';
+  };
+
+  // sorted descending by |count| — top of cloud always shows the strongest prefs
   document.getElementById('liked-tags').innerHTML =
     likedEntries.length ? likedEntries.map(([t,c]) => {
       const cls = c < 0 ? 'pref-tag negative' : 'pref-tag';
       const px  = cloudSize(c, likedMax, likedEntries.length);
-      return `<span class="${cls}" style="font-size:${px}px"
+      const bg  = tintBg(c, likedMax, c < 0);
+      const fg  = tintFg(c, likedMax);
+      return `<span class="${cls}" style="font-size:${px}px;background:${bg};color:${fg}"
                 title="${esc(t)} (${c > 0 ? '+' : ''}${c})">${esc(t)}<button class="tag-del" onclick="removeTag('${esc(t)}','liked')">×</button></span>`;
     }).join('')
     : '<span class="pref-empty">swipe right to add</span>';
@@ -1006,7 +1082,9 @@ function renderPreferences(liked, countries) {
   document.getElementById('country-tags').innerHTML =
     countryEntries.map(([cc,c]) => {
       const px = cloudSize(c, countryMax, countryEntries.length);
-      return `<span class="pref-tag country" style="font-size:${px}px"
+      const bg = tintBg(c, countryMax);
+      const fg = tintFg(c, countryMax);
+      return `<span class="pref-tag country" style="font-size:${px}px;background:${bg};color:${fg}"
                 title="${cc} (${c})">${flag(cc)} ${cc}<button class="tag-del" onclick="removeTag('${esc(cc)}','countries')">×</button></span>`;
     }).join('');
 }
