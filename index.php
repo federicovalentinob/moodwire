@@ -114,10 +114,9 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 
 /* meta — two stacked rows on a soft mood-tinted underlay */
 .card-meta {
-  position:relative;
   display:flex; flex-direction:column; gap:7px; margin-bottom:10px;
   text-transform:uppercase; line-height:1;
-  padding:11px 50px 11px 14px; /* right-side room for the absolute save button */
+  padding:11px 14px;
   background:#f5f5f5;
   border-radius:6px;
 }
@@ -151,15 +150,22 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 /* don't put a separator dot before NEW or right after it */
 .card-meta-row .badge-new + *::before,
 .card-meta-row .badge-new::before { display:none; }
-.card-save-btn {
-  position:absolute; top:50%; right:14px; transform:translateY(-50%);
-  background:none; border:none; cursor:pointer; padding:6px;
-  color:var(--muted); border-radius:6px; display:flex; align-items:center;
-  transition:color 0.15s, background 0.15s; flex-shrink:0;
-  z-index:2;
+/* card footer — three clickable actions: ignore | save | more */
+.card-actions {
+  display:grid; grid-template-columns:1fr 1fr 1fr; align-items:center;
+  padding:8px 14px 4px; margin-top:6px;
 }
-.card-save-btn:hover { color:var(--text); background:rgba(0,0,0,0.05); }
-.card-save-btn.saved { color:var(--accent); }
+.card-action {
+  font-size:10.5px; font-weight:700; color:#888;
+  text-decoration:none; letter-spacing:0.2px; cursor:pointer;
+  user-select:none; -webkit-tap-highlight-color:transparent;
+  transition:color 0.15s;
+}
+.card-action.ignore { text-align:left;   }
+.card-action.save   { text-align:center; }
+.card-action.more   { text-align:right;  }
+.card-action:hover  { color:#111; }
+.card-action.save.saved { color:var(--accent); }
 
 /* title + byline */
 .card-body { padding:0; position:relative; }
@@ -614,9 +620,6 @@ function renderCard(t, i) {
        onclick="tapCard(${t.id}, this)">
     <div class="card-body">
       <div class="card-meta">
-        <button class="card-save-btn" onclick="keepCard(${t.id},this,event)" title="Keep">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-        </button>
         <div class="card-meta-row primary">
           ${t.is_new   ? `<span class="badge badge-new">NEW</span>` : ''}
           ${t.category ? `<span class="badge badge-cat">${esc(t.category)}</span>` : ''}
@@ -630,6 +633,11 @@ function renderCard(t, i) {
       </div>
       <div class="card-title">${esc(t.title)}</div>
       ${hero}
+      <div class="card-actions">
+        <a class="card-action ignore" onclick="event.stopPropagation();handleSwipeAction(this.closest('.card'),'left');return false">&laquo; ignore topic</a>
+        <a class="card-action save"   onclick="event.stopPropagation();keepCard(${t.id},this,event)">save card</a>
+        <a class="card-action more"   onclick="event.stopPropagation();handleSwipeAction(this.closest('.card'),'right');return false">more like this &raquo;</a>
+      </div>
     </div>
 
     <ul class="card-bullets card-section" style="display:${expand ? '' : 'none'}">${bullets}</ul>
@@ -649,10 +657,15 @@ function renderCard(t, i) {
 function keepCard(id, btn, event) {
   event.stopPropagation();
   const card = btn.closest('.card');
-  if (btn.classList.contains('saved')) return;
+  if (btn.classList.contains('saved')) {
+    removeSaved(id);
+    btn.classList.remove('saved');
+    btn.textContent = 'save card';
+    return;
+  }
   addToSaved(id, card, card.outerHTML);
   btn.classList.add('saved');
-  btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+  btn.textContent = '✓ saved';
 }
 
 // 3-state tap: 0=title only → 1=+bullets → 2=+articles → 0
@@ -781,8 +794,9 @@ let overlayActiveId = null;
 
 function addToSaved(id, card, html) {
   if (savedCards.has(id)) return;
-  const title = card.querySelector('.card-title')?.textContent?.trim() ?? '';
-  const color = card.querySelector('.card-accent')?.style.background || '#e8e8e8';
+  const title   = card.querySelector('.card-title')?.textContent?.trim() ?? '';
+  const anxiety = parseFloat(card.dataset.anxiety ?? 5);
+  const color   = anxiety >= 7 ? '#dc2626' : (anxiety >= 4 ? '#ea580c' : '#16a34a');
   savedCards.set(id, { title, color, html: html ?? card.outerHTML, id });
   renderSavedStrip();
 }
