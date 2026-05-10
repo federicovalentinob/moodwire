@@ -28,9 +28,8 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 /* ── Header ─────────────────────────────────────────────────────────────── */
 #header {
   padding: calc(var(--safe-top) + 16px) 16px 0;
-  background: var(--surface);
+  background: #f7f7f7;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
 }
 #header-title-row { display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:14px; }
 #header h1 { font-size:32px; font-weight:900; letter-spacing:-1.5px; line-height:1; }
@@ -44,7 +43,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 #toggle-prefs-btn.open { background:var(--text); border-color:var(--text); color:#fff; }
 
 /* ── Anxiety widget ─────────────────────────────────────────────────────── */
-#anxiety-widget { border-top:1px solid var(--border); padding:0; margin-bottom:10px; }
+#anxiety-widget { padding:0; margin-bottom:10px; }
 #anxiety-widget-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
 #anxiety-widget-title { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:1.2px; color:var(--muted); }
 #anxiety-chips { display:flex; gap:4px; }
