@@ -24,6 +24,10 @@
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html, body { height:100%; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; overflow:hidden; }
 #app { display:flex; flex-direction:column; height:100vh; height:100dvh; }
+@media (min-width: 420px) {
+  body { background:#fff; display:flex; justify-content:center; }
+  #app { width:400px; max-width:400px; box-shadow:0 0 40px rgba(0,0,0,0.12); }
+}
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
 #header {

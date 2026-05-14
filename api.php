@@ -248,7 +248,7 @@ case 'view':
     $anxiety  = isset($body['anxiety']) ? (float)$body['anxiety'] : null;
     if (!$topic_id || $anxiety === null) err('Invalid view');
 
-    $signal_key = 'topic:' . $topic_id;
+    $signal_key = 'view:' . $topic_id;
     if (!in_array($signal_key, $_SESSION['signaled'])) {
         $_SESSION['signaled'][] = $signal_key;
         anx_push($anxiety);
