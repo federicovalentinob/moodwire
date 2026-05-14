@@ -1,5 +1,13 @@
 <?php
 
+// When called via HTTP (cron or browser), require a secret token.
+if (PHP_SAPI !== 'cli' && PHP_SAPI !== 'cli-server') {
+    if (($_GET['token'] ?? '') !== '7cf291816a035e47049ac7ea') {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+}
+
 require_once __DIR__ . '/functions.php';
 
 // Survive client disconnect — fired by admin.php's fire-and-forget self-call.
