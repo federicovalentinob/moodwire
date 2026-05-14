@@ -5,7 +5,7 @@ require_once __DIR__ . '/functions.php';
 ignore_user_abort(true);
 set_time_limit(0);
 
-$min_size = defined('CLUSTER_MIN_SIZE') ? (int)CLUSTER_MIN_SIZE : 3;
+$min_size = defined('CLUSTER_MIN_SIZE') ? (int)CLUSTER_MIN_SIZE : 2;
 
 db()->exec("CREATE TABLE IF NOT EXISTS topic_clusters (
     article_id INT PRIMARY KEY,
@@ -54,12 +54,13 @@ foreach ($by_category as $category => $articles) {
     cli_log("  [$category] $n articles — clustering...");
     $lines  = implode("\n", array_map(fn($r) => "ID:{$r['id']} | {$r['title']}", $articles));
     $system = 'You are a news clustering engine. Return only raw JSON — no markdown, no explanation.';
-    $prompt = "Group these {$category} news articles into clusters. Articles covering the same event or story belong in the same cluster.\n\n"
+    $prompt = "You will be given a list of news article titles. Group together articles that are about the SAME specific news event — meaning multiple outlets reporting on the same thing that happened.\n\n"
             . "Rules:\n"
-            . "- Only include clusters of {$min_size} or more articles\n"
-            . "- Each article ID appears in at most one cluster\n"
-            . "- Skip articles that don't clearly belong to any group\n\n"
-            . "Return a JSON array: [{\"ids\":[1,2,3]}, ...]\n\n"
+            . "- A cluster = multiple outlets covering the SAME specific event (e.g. the same court ruling, the same match, the same speech). Do NOT group articles that merely share a general topic or theme.\n"
+            . "- Each article ID appears in at most one cluster.\n"
+            . "- Leave out articles that have no clear match. It is better to leave an article unclustered than to force it into a cluster.\n"
+            . "- Minimum 2 articles per cluster.\n\n"
+            . "Return a JSON array: [{\"ids\":[1,2]}, ...]\n\n"
             . "Articles:\n{$lines}";
 
     $raw     = call_openai_chat($prompt, $system);
