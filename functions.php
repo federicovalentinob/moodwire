@@ -347,7 +347,7 @@ function tag_articles_batch(array $articles): array {
     $prompt = get_prompt('tagging');
     $prompt = str_replace('{{articles}}', $lines, $prompt);
     $system = 'You are a JSON API. Output only a raw valid JSON array. No explanations, no citations, no markdown.';
-    $raw    = call_perplexity($prompt, $system);
+    $raw    = call_openai_chat($prompt, $system);
     $result = json_decode(extract_json($raw), true);
 
     if (!is_array($result)) return [];
@@ -607,6 +607,38 @@ function call_openai_embeddings(array $inputs): array {
     }
     $resp = json_decode($raw, true);
     return $resp['data'] ?? [];
+}
+
+function call_openai_chat(string $prompt, string $system = ''): string {
+    $messages = [];
+    if ($system) $messages[] = ['role' => 'system', 'content' => $system];
+    $messages[] = ['role' => 'user', 'content' => $prompt];
+
+    $payload = json_encode([
+        'model'      => defined('LABEL_MODEL') ? LABEL_MODEL : 'gpt-4o-mini',
+        'max_tokens' => 16384,
+        'messages'   => $messages,
+    ]);
+    $ch = curl_init('https://api.openai.com/v1/chat/completions');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_TIMEOUT        => 120,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . OPENAI_API_KEY,
+            'Content-Type: application/json',
+        ],
+    ]);
+    $raw  = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    @curl_close($ch);
+    if ($code !== 200) {
+        cli_log("OpenAI chat HTTP $code: " . substr($raw, 0, 300));
+        return '';
+    }
+    $data = json_decode($raw, true);
+    return $data['choices'][0]['message']['content'] ?? '';
 }
 
 function call_openai_chat_json(string $system, string $user, array $schema, string $schema_name = 'topic_label'): ?array {

@@ -355,18 +355,6 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
 #empty  { text-align:center; padding:60px 20px; color:var(--muted); font-size:15px; }
 #loader { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
 
-/* ── Bottom nav ─────────────────────────────────────────────────────────── */
-#bottom-nav {
-  display:flex; border-top:1px solid var(--border);
-  padding-bottom:var(--safe-bot); background:var(--surface); flex-shrink:0;
-}
-.nav-item {
-  flex:1; display:flex; flex-direction:column; align-items:center;
-  padding:10px 0; gap:3px; text-decoration:none;
-  color:var(--muted); font-size:10px; font-weight:600;
-  letter-spacing:0.3px; text-transform:uppercase; transition:color 0.15s;
-}
-.nav-item.active, .nav-item:active { color:var(--text); }
 .nav-icon { font-size:20px; line-height:1; }
 </style>
 </head>
@@ -468,11 +456,6 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
     <div id="loader">Loading…</div>
   </div>
 
-  <!-- Bottom nav -->
-  <nav id="bottom-nav">
-    <a href="index.php" class="nav-item active"><span class="nav-icon">📰</span>Feed</a>
-    <a href="run.php"   class="nav-item"><span class="nav-icon">⚙️</span>Admin</a>
-  </nav>
 
 </div>
 

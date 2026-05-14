@@ -41,7 +41,7 @@ $edit_feed = isset($_GET['edit']) ? get_feed((int)$_GET['edit']) : null;
   <nav class="nav">
     <a href="index.php" class="nav-logo">Moodwire</a>
     <a href="feeds.php" class="active">Feeds</a>
-    <a href="run.php">Run Pipeline</a>
+    <a href="admin.php">Admin</a>
   </nav>
 
   <h1>RSS Feeds</h1>

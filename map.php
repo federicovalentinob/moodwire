@@ -91,7 +91,7 @@ $links = array_values($links);
     <a href="map.php" class="active">Map</a>
     <a href="mobile.php">Globe</a>
     <a href="feeds.php">Feeds</a>
-    <a href="run.php">Pipeline</a>
+    <a href="admin.php">Pipeline</a>
   </nav>
 
   <h1>Topic Map</h1>

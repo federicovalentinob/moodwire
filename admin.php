@@ -1,21 +1,75 @@
 <?php
+session_start();
+
+define('ADMIN_PASSWORD', 'Youpala');
+
+// Handle login / logout before anything else
+if (isset($_POST['admin_password'])) {
+    if ($_POST['admin_password'] === ADMIN_PASSWORD) {
+        $_SESSION['admin_auth'] = true;
+    }
+    header('Location: admin.php');
+    exit;
+}
+if (isset($_GET['logout'])) {
+    session_destroy();
+    header('Location: admin.php');
+    exit;
+}
+
+// Gate: show password form if not authenticated
+if (empty($_SESSION['admin_auth'])) {
+?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Moodwire — Admin</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .login-wrap { display:flex; align-items:center; justify-content:center; min-height:80vh; }
+  .login-box  { background:var(--surface); border:1px solid var(--border); border-radius:12px;
+                padding:40px 32px; width:100%; max-width:360px; text-align:center; }
+  .login-box h2 { margin:0 0 24px; font-size:20px; }
+  .login-box input[type=password] { width:100%; box-sizing:border-box; padding:10px 14px;
+    font-size:15px; border:1px solid var(--border); border-radius:8px; margin-bottom:16px; }
+  .login-box .btn { width:100%; padding:11px; font-size:15px; }
+  .login-error { color:#dc2626; font-size:13px; margin-bottom:12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="login-wrap">
+    <div class="login-box">
+      <h2>Admin</h2>
+      <?php if (isset($_GET['err'])): ?>
+        <p class="login-error">Wrong password.</p>
+      <?php endif; ?>
+      <form method="POST">
+        <input type="password" name="admin_password" placeholder="Password" autofocus>
+        <button class="btn" type="submit">Sign in</button>
+      </form>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+<?php
+    exit;
+}
+
+// ── Authenticated — run admin logic ──────────────────────────────────────────
 
 require_once __DIR__ . '/functions.php';
 
 $step    = $_POST['step'] ?? '';
 $message = '';
 
-// ── Trigger a step via fire-and-forget HTTP self-call ───────────────────────
-// Shared hosting (IONOS) silently drops exec("... &"), so we hit the matching
-// step script over HTTP and hang up. The Apache worker keeps running thanks to
-// ignore_user_abort(true) inside each step file.
 if ($step) {
     $scripts = [
         'all'           => 'pipeline.php',
         'fetch'         => 'fetch.php',
         'fetch_images'  => 'fetch_images.php',
         'normalize'     => 'normalize.php',
-        'embed'         => 'embed.php',
         'cluster'       => 'cluster.php',
         'label'         => 'label.php',
     ];
@@ -23,12 +77,8 @@ if ($step) {
     if (isset($scripts[$step])) {
         $script_path = __DIR__ . '/' . $scripts[$step];
         if (PHP_SAPI === 'cli-server') {
-            // Local dev: php -S is single-threaded, so an HTTP self-call would
-            // deadlock. Spawn a real CLI php process instead and detach.
             exec("php " . escapeshellarg($script_path) . " >> /tmp/moodwire_run.log 2>&1 &");
         } else {
-            // Production (Apache): fire-and-forget HTTP self-call. The Apache
-            // worker keeps running thanks to ignore_user_abort() in the step file.
             $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
             $url   = $proto . '://' . $_SERVER['HTTP_HOST'] . '/' . $scripts[$step];
             $ch    = curl_init($url);
@@ -41,47 +91,39 @@ if ($step) {
             curl_exec($ch);
         }
         $message = "Step '{$step}' started in background. Refresh to see progress in logs.";
-        log_action($step, 'success', 'Started via run.php');
+        log_action($step, 'success', 'Started via admin.php');
     }
-    header('Location: run.php?msg=' . urlencode($message));
+    header('Location: admin.php?msg=' . urlencode($message));
     exit;
 }
 
 if (isset($_GET['msg'])) $message = $_GET['msg'];
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
 $stats = [
-    'feeds'           => db()->query('SELECT COUNT(*) FROM feeds WHERE active=1')->fetchColumn(),
-    'articles'        => db()->query('SELECT COUNT(*) FROM articles')->fetchColumn(),
-    'with_image'      => db()->query('SELECT COUNT(*) FROM articles WHERE image_path IS NOT NULL')->fetchColumn(),
-    'normalized'      => db()->query('SELECT COUNT(*) FROM articles WHERE clean_content IS NOT NULL AND clean_content != ""')->fetchColumn(),
-    'embedded'        => (int)db()->query('SELECT COUNT(*) FROM article_embeddings')->fetchColumn(),
-    'clusters'        => (int)(db()->query("SHOW TABLES LIKE 'topic_clusters'")->fetchColumn() ? db()->query('SELECT COUNT(DISTINCT cluster_id) FROM topic_clusters')->fetchColumn() : 0),
-    'topics'          => db()->query('SELECT COUNT(*) FROM topics')->fetchColumn(),
+    'feeds'      => db()->query('SELECT COUNT(*) FROM feeds WHERE active=1')->fetchColumn(),
+    'articles'   => db()->query('SELECT COUNT(*) FROM articles')->fetchColumn(),
+    'with_image' => db()->query('SELECT COUNT(*) FROM articles WHERE image_path IS NOT NULL')->fetchColumn(),
+    'normalized' => db()->query('SELECT COUNT(*) FROM articles WHERE clean_content IS NOT NULL AND clean_content != ""')->fetchColumn(),
+    'clusters'   => (int)(db()->query("SHOW TABLES LIKE 'topic_clusters'")->fetchColumn() ? db()->query('SELECT COUNT(DISTINCT cluster_id) FROM topic_clusters')->fetchColumn() : 0),
+    'topics'     => db()->query('SELECT COUNT(*) FROM topics')->fetchColumn(),
 ];
 
 $logs = db()->query('SELECT * FROM logs ORDER BY id DESC LIMIT 30')->fetchAll();
 
-// ── Detect the currently-active step (most recent log within 2 min) ──────────
 $action_to_step = [
     'fetch'        => 1,
     'fetch_images' => 2,
     'normalize'    => 3,
-    'embed'        => 4,
-    'cluster'      => 5,
-    'label'        => 6,
+    'cluster'      => 4,
+    'label'        => 5,
 ];
 $active_step = 0;
-$active_ago  = null;
 if (!empty($logs)) {
     foreach ($logs as $l) {
         if (isset($action_to_step[$l['action']])) {
             $age = time() - strtotime($l['created_at']);
-            if ($age <= 120) {
-                $active_step = $action_to_step[$l['action']];
-                $active_ago  = $age;
-            }
-            break;  // only consider the very latest log
+            if ($age <= 120) $active_step = $action_to_step[$l['action']];
+            break;
         }
     }
 }
@@ -90,7 +132,7 @@ if (!empty($logs)) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Moodwire — Pipeline</title>
+<title>Moodwire — Admin</title>
 <link rel="stylesheet" href="style.css">
 <style>
   .pipeline-step.is-active {
@@ -111,7 +153,7 @@ if (!empty($logs)) {
   }
 </style>
 <?php if ($message || $active_step): ?>
-<meta http-equiv="refresh" content="<?= $active_step ? 5 : 5 ?>;url=run.php">
+<meta http-equiv="refresh" content="5;url=admin.php">
 <?php endif; ?>
 </head>
 <body>
@@ -120,7 +162,8 @@ if (!empty($logs)) {
     <a href="index.php" class="nav-logo">Moodwire</a>
     <a href="map.php">Map</a>
     <a href="feeds.php">Feeds</a>
-    <a href="run.php" class="active">Run Pipeline</a>
+    <a href="admin.php" class="active">Admin</a>
+    <a href="admin.php?logout=1" style="margin-left:auto;font-size:12px;color:var(--muted)">Sign out</a>
   </nav>
 
   <h1>Pipeline</h1>
@@ -134,7 +177,6 @@ if (!empty($logs)) {
     <div class="stat"><span><?= $stats['articles'] ?></span>Articles</div>
     <div class="stat"><span><?= $stats['with_image'] ?></span>Images</div>
     <div class="stat"><span><?= $stats['normalized'] ?></span>Normalized</div>
-    <div class="stat"><span><?= $stats['embedded'] ?></span>Embedded</div>
     <div class="stat"><span><?= $stats['clusters'] ?></span>Clusters</div>
     <div class="stat"><span><?= $stats['topics'] ?></span>Topics</div>
   </div>
@@ -147,9 +189,8 @@ if (!empty($logs)) {
   </div>
 
   <?php
-    $unembedded = max(0, (int)$stats['articles'] - (int)$stats['embedded']);
-    $no_image   = max(0, (int)$stats['articles'] - (int)$stats['with_image']);
-    $no_clean   = max(0, (int)$stats['articles'] - (int)$stats['normalized']);
+    $no_image = max(0, (int)$stats['articles'] - (int)$stats['with_image']);
+    $no_clean = max(0, (int)$stats['articles'] - (int)$stats['normalized']);
   ?>
   <div class="pipeline">
   <?php $_n = 0; ?>
@@ -193,22 +234,8 @@ if (!empty($logs)) {
     <div class="pipeline-step<?= $active_step === ++$_n ? ' is-active' : '' ?>">
       <div class="step-num">4</div>
       <div class="step-info">
-        <h3>Embed</h3>
-        <p>OpenAI <code>text-embedding-3-small</code> @ 384 dims — <?= $stats['embedded'] ?>/<?= $stats['articles'] ?> embedded (<?= $unembedded ?> pending).</p>
-      </div>
-      <form method="POST">
-        <input type="hidden" name="step" value="embed">
-        <button class="btn" <?= $unembedded == 0 ? 'disabled' : '' ?>>
-          <?= $unembedded > 0 ? 'Run' : 'Up to date ✓' ?>
-        </button>
-      </form>
-    </div>
-
-    <div class="pipeline-step<?= $active_step === ++$_n ? ' is-active' : '' ?>">
-      <div class="step-num">5</div>
-      <div class="step-info">
         <h3>Cluster</h3>
-        <p>Local threshold k-NN clustering on the embedding space (cos ≥ 0.70). <?= $stats['clusters'] ?> clusters from last run.</p>
+        <p>Group articles by feed category, then ask <code>gpt-4o-mini</code> to cluster by story. <?= $stats['clusters'] ?> clusters from last run.</p>
       </div>
       <form method="POST">
         <input type="hidden" name="step" value="cluster">
@@ -217,7 +244,7 @@ if (!empty($logs)) {
     </div>
 
     <div class="pipeline-step<?= $active_step === ++$_n ? ' is-active' : '' ?>">
-      <div class="step-num">6</div>
+      <div class="step-num">5</div>
       <div class="step-info">
         <h3>Label</h3>
         <p>One <code>gpt-4o-mini</code> call per cluster — title, bullets, anxiety, country (<?= $stats['topics'] ?> topics in DB).</p>
@@ -232,7 +259,7 @@ if (!empty($logs)) {
 
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
     <h2>Recent Logs</h2>
-    <a href="run.php" class="btn btn-sm btn-grey">↻ Refresh</a>
+    <a href="admin.php" class="btn btn-sm btn-grey">↻ Refresh</a>
   </div>
 
   <table class="table">

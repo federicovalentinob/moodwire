@@ -227,7 +227,7 @@ function save_clusters(array $clusters, array $article_ids): array {
         }
         $batch_prompt = get_prompt('bullets_batch');
         $batch_prompt = str_replace('{{topics}}', $topics_str, $batch_prompt);
-        $raw_batch    = call_perplexity($batch_prompt);
+        $raw_batch    = call_openai_chat($batch_prompt);
         $batch_result = json_decode(extract_json($raw_batch), true);
         $bullets_by_idx = [];
         if (is_array($batch_result)) {
@@ -259,7 +259,7 @@ function run_batch(array $articles, string $tag): void {
         $cluster_prompt_tpl
     );
 
-    $raw      = call_perplexity($prompt);
+    $raw      = call_openai_chat($prompt);
     $clusters = json_decode(extract_json($raw), true);
 
     if (!$clusters || !is_array($clusters) || empty($clusters)) {

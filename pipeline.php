@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/functions.php';
 
-// Survive client disconnect — fired by run.php's fire-and-forget self-call.
+// Survive client disconnect — fired by admin.php's fire-and-forget self-call.
 ignore_user_abort(true);
 set_time_limit(0);
 
@@ -11,7 +11,7 @@ set_time_limit(0);
 //   php pipeline.php embed
 //   php pipeline.php fetch embed
 //   php pipeline.php cluster label
-$all_steps    = ['fetch', 'images', 'normalize', 'embed', 'cluster', 'label'];
+$all_steps    = ['fetch', 'images', 'normalize', 'cluster', 'label'];
 $args         = array_slice($argv ?? [], 1);
 $wanted       = $args ? array_intersect($all_steps, $args) : $all_steps;
 $run          = array_fill_keys($wanted, true);
@@ -45,18 +45,14 @@ if (should_run('fetch', $run)) {
 }
 
 // Mark articles as processed so cluster/label steps treat them as eligible.
-// (The legacy tag step used to do this; we no longer tag per-article.)
-if (array_intersect(['embed', 'cluster', 'label'], array_keys($run))) {
+if (array_intersect(['cluster', 'label'], array_keys($run))) {
     db()->exec("UPDATE articles SET processed = 1 WHERE processed = 0");
 }
 
-// ── Step 4: Embed ─────────────────────────────────────────────────────────────
-if (should_run('embed', $run))   step('Embed',   'embed.php');
-
-// ── Step 5: Cluster ───────────────────────────────────────────────────────────
+// ── Step 4: Cluster ───────────────────────────────────────────────────────────
 if (should_run('cluster', $run)) step('Cluster', 'cluster.php');
 
-// ── Step 6: Label ─────────────────────────────────────────────────────────────
+// ── Step 5: Label ─────────────────────────────────────────────────────────────
 if (should_run('label', $run))   step('Label',   'label.php');
 
 log_action('pipeline', 'success', 'Pipeline completed (' . implode('+', array_keys($run)) . ')');
