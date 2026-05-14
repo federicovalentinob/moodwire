@@ -9,8 +9,8 @@ $schema = [
     'type' => 'object',
     'additionalProperties' => false,
     'properties' => [
-        'title'   => ['type' => 'string',  'description' => 'A short, complete newspaper headline (a single grammatical thought).'],
-        'bullets' => ['type' => 'array',   'items' => ['type' => 'string'], 'description' => 'Exactly 3 short bullet points summarizing the key facts. Always return 3 — no more, no fewer.'],
+        'title'   => ['type' => 'string',  'description' => 'A short, clear headline in simple English. Use common words. Avoid jargon, idioms, and complex vocabulary. Write as if explaining to someone who is not a native English speaker.'],
+        'bullets' => ['type' => 'array',   'items' => ['type' => 'string'], 'description' => 'Exactly 3 bullet points. Each bullet must be one short, simple sentence. Use basic vocabulary. State the facts directly — who did what, what happened, what it means. Always return 3 — no more, no fewer.'],
         'anxiety' => ['type' => 'number',  'description' => 'A score 0-10 where 0 is very positive/relaxing and 10 is very alarming/stressful.'],
         'country' => ['type' => 'string',  'description' => 'ISO 3166-1 alpha-2 country code most associated with the story, or "XX" if global/none.'],
         'category'=> ['type' => 'string',  'description' => 'One of: Politics, Geopolitics, Economy, Technology, Science, Health, Society, Crime, Environment, Sports, Entertainment, Travel, Food.'],
@@ -19,7 +19,7 @@ $schema = [
     'required' => ['title','bullets','anxiety','country','category','type'],
 ];
 
-$system = 'You are a senior news editor. You will be given a list of article titles that all cover the same news story. Produce a JSON object describing one topic for that story.';
+$system = 'You are a news editor writing for a global audience. Many readers are not native English speakers. You will be given a list of article titles that all cover the same news story. Write in plain, simple English: short sentences, common words, no idioms or jargon. Produce a JSON object describing the story.';
 
 // Pull each cluster's article ids + titles
 $clusters = db()->query("
