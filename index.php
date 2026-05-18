@@ -404,10 +404,10 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:-
           <line class="gauge-divider" x1="164" y1="22" x2="164" y2="44" />
           <line class="gauge-divider" x1="212" y1="22" x2="212" y2="44" />
 
-          <!-- "Feed anxiety level" needle BELOW the bar, points up -->
+          <!-- "Feed Anxiety" needle BELOW the bar, points up -->
           <g id="needle-global" class="needle-grp">
             <polygon points="14,52 26,52 20,46" class="needle-arrow global" />
-            <text x="20" y="64" text-anchor="middle" class="pin-label global">Feed anxiety level</text>
+            <text x="20" y="64" text-anchor="middle" class="pin-label global">Feed Anxiety</text>
           </g>
 
           <!-- "You" needle ABOVE the bar, points down — last so it paints over the frame -->

@@ -57,6 +57,7 @@ foreach ($by_category as $category => $articles) {
     $prompt = "You will be given a list of news article titles. Group together articles that are about the SAME specific news event — meaning multiple outlets reporting on the same thing that happened.\n\n"
             . "Rules:\n"
             . "- A cluster = multiple outlets covering the SAME specific event (e.g. the same court ruling, the same match, the same speech). Do NOT group articles that merely share a general topic or theme.\n"
+            . "- Do NOT cluster evergreen or listicle content — e.g. 'best restaurants in X', 'top things to do in Y', ranked lists, travel guides, 'best of' articles, album reviews — even if multiple articles share the same theme. These are not news events.\n"
             . "- Each article ID appears in at most one cluster.\n"
             . "- Leave out articles that have no clear match. It is better to leave an article unclustered than to force it into a cluster.\n"
             . "- Minimum 2 articles per cluster.\n\n"

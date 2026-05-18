@@ -19,7 +19,7 @@ set_time_limit(0);
 //   php pipeline.php embed
 //   php pipeline.php fetch embed
 //   php pipeline.php cluster label
-$all_steps    = ['fetch', 'images', 'normalize', 'cluster', 'label'];
+$all_steps    = ['fetch', 'images', 'normalize', 'cluster', 'label', 'merge'];
 $args         = array_slice($argv ?? [], 1);
 $wanted       = $args ? array_intersect($all_steps, $args) : $all_steps;
 $run          = array_fill_keys($wanted, true);
@@ -62,6 +62,9 @@ if (should_run('cluster', $run)) step('Cluster', 'cluster.php');
 
 // ── Step 5: Label ─────────────────────────────────────────────────────────────
 if (should_run('label', $run))   step('Label',   'label.php');
+
+// ── Step 6: Merge ─────────────────────────────────────────────────────────────
+if (should_run('merge', $run))   step('Merge',   'merge.php');
 
 log_action('pipeline', 'success', 'Pipeline completed (' . implode('+', array_keys($run)) . ')');
 echo "\nPipeline complete.\n";
