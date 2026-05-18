@@ -80,7 +80,7 @@ if ($step) {
             exec("php " . escapeshellarg($script_path) . " >> /tmp/moodwire_run.log 2>&1 &");
         } else {
             $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $url   = $proto . '://' . $_SERVER['HTTP_HOST'] . '/' . $scripts[$step];
+            $url   = $proto . '://' . $_SERVER['HTTP_HOST'] . '/' . $scripts[$step] . '?token=7cf291816a035e47049ac7ea';
             $ch    = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
